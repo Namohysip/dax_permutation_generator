@@ -7,3 +7,5 @@ http://igraph.org/c/
 As seen in the Makefile, the flags -I/usr/local/igraph -L/usr/local/lib -ligraph  is needed when compiling. 
 Just in case (as this happened before) be sure that usr/local/lib and usr/local/igraph actually HAS the required files,
 and they weren't placed someplace else by the installer.
+
+The C code will also require the pugixml library; version 1.7 was used for the workflow.cpp code.
