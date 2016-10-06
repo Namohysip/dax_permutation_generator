@@ -4,7 +4,7 @@ CXX_FLAGS = -std=c++11 -Ofast
 default: main
 
 OBJECTS= mainTest.o workflow.o pugixml.o DAGUtilities.o PermutationMaker.o
-HEADERS= workflow.hpp defun.hpp
+HEADERS= workflow.hpp
 IGRAPHLIB= -I/usr/local/igraph -L/usr/local/lib -ligraph 
 
 
@@ -36,5 +36,4 @@ clean:
 	/bin/rm -f ./*.o
 	/bin/rm -f ./main
 	/bin/rm -f main.dSYM
-
 
