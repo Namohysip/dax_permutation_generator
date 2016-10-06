@@ -1,14 +1,17 @@
 #include <igraph.h>
 #include <iostream>
 #include <vector>
-
+#include <sstream>
+#include "Workflow.hpp"
 void printEdges(igraph_t*);
 void printNodes(igraph_t*);
 void combine(igraph_t * , igraph_integer_t, igraph_integer_t);
 bool addWithoutDuplicates( std::vector<igraph_t *> * , igraph_t *);
-std::vector<igraph_t *> exhaustivePermStart(igraph_t *);
+std::vector<igraph_t *> * exhaustivePermStart(igraph_t * graph, bool timed = false, double seconds = 0, int goal = 0);
+igraph_t * getImported();
+void outputDAX(std::vector<igraph_t *> *, std::string);
 
- int main () {
+ int main (int argc, char* argv[]) {
 	 
 	 //How to construct a graph
 	 igraph_i_set_attribute_table(&igraph_cattribute_table); //ALWAYS HAVE THIS. Enables attributes.
@@ -31,11 +34,11 @@ std::vector<igraph_t *> exhaustivePermStart(igraph_t *);
 	 SETVAN(&graph, runtime, 1, 60);
 	 SETVAN(&graph, runtime, 2, 60);
 	 SETVAN(&graph, runtime, 4, 60);
-	 SETVAN(&graph, id, 0,0);
-	 SETVAN(&graph, id, 1,1);
-	 SETVAN(&graph, id, 2,2);
-	 SETVAN(&graph, id, 3,3);
-	 SETVAN(&graph, id, 4,4);
+	 SETVAS(&graph, id, 0,"0");
+	 SETVAS(&graph, id, 1,"1");
+	 SETVAS(&graph, id, 2,"2");
+	 SETVAS(&graph, id, 3,"3");
+	 SETVAS(&graph, id, 4,"4");
 	 
 	 //How to copy graphs (including attributes!)
 	 printEdges(&graph);
@@ -101,15 +104,15 @@ std::vector<igraph_t *> exhaustivePermStart(igraph_t *);
 	 SETVAN(&notDuplicate, "runtime", 0, 30);
 	 addWithoutDuplicates(&list, &notDuplicate);
 	 std::cout << "Added something with same nodecount but different attributes" << list.size() << "\n";
-	 
 	 /*
+	 
 	 igraph_t vbasic;
 	 igraph_empty(&vbasic, 0, IGRAPH_DIRECTED);
 	 igraph_add_vertices(&vbasic, 4, 0);
-	 SETVAN(&vbasic, "id", 0, 0);
-	 SETVAN(&vbasic, "id", 1, 1);
-	 SETVAN(&vbasic, "id", 2, 2);
-	 SETVAN(&vbasic, "id", 3, 3);
+	 SETVAS(&vbasic, "id", 0, "0");
+	 SETVAS(&vbasic, "id", 1, "1");
+	 SETVAS(&vbasic, "id", 2, "2");
+	 SETVAS(&vbasic, "id", 3, "3");
 	 SETVAN(&vbasic, "runtime", 0, 60);
 	 SETVAN(&vbasic, "runtime", 1, 60);
 	 SETVAN(&vbasic, "runtime", 2, 60);
@@ -118,27 +121,28 @@ std::vector<igraph_t *> exhaustivePermStart(igraph_t *);
 	 igraph_add_edge(&vbasic, 0, 2);
 	 igraph_add_edge(&vbasic, 1, 3);
 	 igraph_add_edge(&vbasic, 2, 3);
-	 std::vector<igraph_t *> vexhaust = exhaustivePermStart(&vbasic);
-	 std::cout << vexhaust.size();
+	 std::vector<igraph_t *> * vexhaust = exhaustivePermStart(&vbasic, false);
+	 std::cout << vexhaust->size();
 	 
-	 for(std::vector<igraph_t*>::iterator it = vexhaust.begin(); it != vexhaust.end(); ++it){
+	 for(std::vector<igraph_t*>::iterator it = vexhaust->begin(); it != vexhaust->end(); ++it){
 		printNodes(*it);
 		printEdges(*it);
-	} */
+	} 
+	 */
 	 /*
-	 	 std::cout << "Now testing exhaustivePerm on basic DAG structure: \n";
+	 	 std::cout << "Now testing exhaustivePerm and file output on basic DAG structure: \n";
 	 igraph_t basic;
 	 
 	 igraph_empty(&basic, 0, IGRAPH_DIRECTED);
 	 igraph_add_vertices(&basic, 8, 0);
-	 SETVAN(&basic, "id", 0, 0);
-	 SETVAN(&basic, "id", 1, 1);
-	 SETVAN(&basic, "id", 2, 2);
-	 SETVAN(&basic, "id", 3, 3);
-	 SETVAN(&basic, "id", 4, 4);
-	 SETVAN(&basic, "id", 5, 5);
-	 SETVAN(&basic, "id", 6, 6);
-	 SETVAN(&basic, "id", 7, 7);
+	 SETVAS(&basic, "id", 0, "0");
+	 SETVAS(&basic, "id", 1, "1");
+	 SETVAS(&basic, "id", 2, "2");
+	 SETVAS(&basic, "id", 3, "3");
+	 SETVAS(&basic, "id", 4, "4");
+	 SETVAS(&basic, "id", 5, "5");
+	 SETVAS(&basic, "id", 6, "6");
+	 SETVAS(&basic, "id", 7, "7");
 	 SETVAN(&basic, "runtime", 0, 60);
 	 SETVAN(&basic, "runtime", 1, 60);
 	 SETVAN(&basic, "runtime", 2, 60);
@@ -158,25 +162,47 @@ std::vector<igraph_t *> exhaustivePermStart(igraph_t *);
 	 igraph_add_edge(&basic, 5, 7);
 	 igraph_add_edge(&basic, 6, 7);
 	 
-	 std::vector<igraph_t *> exhaust = exhaustivePermStart(&basic);
-	 std::cout << exhaust.size();
-	 */
+	 std::vector<igraph_t *> * exhaust = exhaustivePermStart(&basic, false);
+	 std::cout << exhaust->size();
 	 
+	 outputDAX(exhaust, "permutationOutput/test");
+	 */
+	 /*
 	 igraph_t stress;
-	 int max = 14;
+	 int max = 10;
 	 std::cout << "Simple stress-testing: series graph of size " << max << ":\n";
 	 igraph_empty(&stress, 0, IGRAPH_DIRECTED);
 	 igraph_add_vertices(&stress, max, 0);
-	 SETVAN(&stress, "id", 0, 0);
+	 SETVAS(&stress, "id", 0, "0");
 	 SETVAN(&stress, "runtime", 0, 60);
 	 for ( int i = 1; i < max; i++){
-		 SETVAN(&stress, "id", i, i);
+		std::stringstream con;
+		con << i;
+		std::string str = con.str();
+		 SETVAS(&stress, "id", i, str.c_str());
 		 SETVAN(&stress, "runtime", i, 60);
 		 igraph_add_edge(&stress, i-1, i);
 	 }
 	 
-	 std::vector<igraph_t *> stressList = exhaustivePermStart(&stress);
-	 std::cout << stressList.size();
+	 std::vector<igraph_t *> * stressList = exhaustivePermStart(&stress, false);
+	 std::cout << stressList->size(); 
+	 
+	 */
+	 if(argc != 5){
+	std::cout << "Usage: takes exactly 4 arguments: \n";
+	std::cout << "base xml file (filename.xml) \n file base name (folder/filename) \n time to run, (double) \n limit on number of permutations (int)";
+	}
+	else {
+	Workflow * workflow = new Workflow("some_workflow");
+	 workflow->load_from_xml(argv[1]);
+	 printEdges(getImported());
+	 printNodes(getImported());
+	 
+	 std::vector<igraph_t *> * totalExhaust = exhaustivePermStart(getImported(), true, std::stod(argv[3]), std::stoi(argv[4]));
+	 std::cout << totalExhaust->size();
+	 
+	 outputDAX(totalExhaust, argv[2]);
+	}
 	 igraph_vs_destroy(&del);
 	 igraph_es_destroy(&edel);
 	 igraph_destroy(&graph);
