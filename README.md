@@ -1,6 +1,7 @@
 # dax_permutation_generator
 Python and C code for exhaustive permutations of a DAX file
 
+
 In order to use the C++ code, you'll have to install igraph for C. To do so, follow the instructions at the website:
 http://igraph.org/c/ 
 
