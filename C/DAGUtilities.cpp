@@ -1,14 +1,7 @@
-#include"defun.hpp"
 #include <iostream>
 #include <igraph.h>
 
-Job newJob(int id, int runtime){
-	struct Job aNewJob;
-	aNewJob.id = id;
-	aNewJob.runtime = runtime;
-	return aNewJob;
-}
-
+igraph_t * imported;
 void printNodes(igraph_t* graph){
 	igraph_vector_t gtypes, vtypes, etypes;
 	igraph_strvector_t gnames, vnames, enames;
@@ -26,7 +19,7 @@ void printNodes(igraph_t* graph){
 	igraph_cattribute_list(graph, &gnames, &gtypes, &vnames, &vtypes, &enames, &etypes);
 	
 	for(i = 0; i < igraph_vcount(graph); i++){
-		std::cout << "ID: " << VAN(graph, "id", i) << "," << VAN(graph, "runtime" ,i) << "\n";
+		std::cout << "ID: " << VAS(graph, "id", i) << "," << VAN(graph, "runtime" ,i) << "\n";
 	}
 	
 	igraph_vector_destroy(&gtypes);
@@ -66,7 +59,7 @@ void printEdges(igraph_t* graph){
 		igraph_integer_t to;
 		igraph_edge(graph, eid, &from, &to);
 		
-		std::cout << VAN(graph, "id", from) << "," << VAN(graph, "id", to) << "\n";
+		std::cout << VAS(graph, "id", from) << "," << VAS(graph, "id", to) << "\n";
 		
 		IGRAPH_EIT_NEXT(edgeIter);
 	}
@@ -78,4 +71,12 @@ void printEdges(igraph_t* graph){
 	igraph_strvector_destroy(&enames);
 	igraph_strvector_destroy(&vnames);
 	igraph_es_destroy(&edges);
+}
+
+void setImported(igraph_t * graph){
+	imported = graph;
+}
+
+igraph_t * getImported(){
+	return imported;
 }
