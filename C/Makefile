@@ -1,6 +1,7 @@
 
 CXX = g++
-CXX_FLAGS = -std=c++11 -Ofast
+#CXX_FLAGS = -std=c++11 -Ofast
+CXX_FLAGS = -std=c++11 -g
 EXEC = dax_permutation_generator
 
 
