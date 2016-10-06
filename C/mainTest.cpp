@@ -2,7 +2,7 @@
 #include <iostream>
 #include <vector>
 #include <sstream>
-#include "Workflow.hpp"
+#include "workflow.hpp"
 void printEdges(igraph_t*);
 void printNodes(igraph_t*);
 void combine(igraph_t * , igraph_integer_t, igraph_integer_t);
