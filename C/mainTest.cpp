@@ -3,6 +3,8 @@
 #include <vector>
 #include <sstream>
 #include "workflow.hpp"
+#include <string>
+
 void printEdges(igraph_t*);
 void printNodes(igraph_t*);
 void combine(igraph_t * , igraph_integer_t, igraph_integer_t);
@@ -11,10 +13,49 @@ std::vector<igraph_t *> * exhaustivePermStart(igraph_t * graph, bool timed = fal
 igraph_t * getImported();
 void outputDAX(std::vector<igraph_t *> *, std::string);
 
- int main (int argc, char* argv[]) {
+void test_with_small_hardcoded_graph();
+
+int main (int argc, char* argv[]) {
 	 
-	 //How to construct a graph
-	 igraph_i_set_attribute_table(&igraph_cattribute_table); //ALWAYS HAVE THIS. Enables attributes.
+	igraph_i_set_attribute_table(&igraph_cattribute_table); //ALWAYS HAVE THIS. Enables attributes.
+
+	// Test mode
+	if ((argc == 2) && (std::string(argv[1]) == "test")) {
+		test_with_small_hardcoded_graph();	
+		exit(0);
+	}
+
+	if(argc != 5) {
+		std::cerr << "Usage:\n";
+		std::cerr << "  " << argv[0] << " test\n";
+		std::cerr << "  \truns a simple hardcoded test example\n\n";
+		std::cerr << "  " << argv[0] << " <dax file> <output file prefix> <timeout (floating point)> <max # of permutations>\n";
+		std::cerr << "  \tExample: " << argv[0] << "./my_dax.xml /tmp/transformed_ 60.0 1000\n";
+		exit(1);
+	}
+
+
+	igraph_t graph;
+
+	/* Load the workflow from the DAX file*/
+	Workflow * workflow = new Workflow("some_workflow");
+	workflow->load_from_xml(argv[1]);
+	printEdges(getImported());
+	printNodes(getImported());
+	 
+	/* Compute all transformations */
+	std::vector<igraph_t *> * totalExhaust = exhaustivePermStart(getImported(), true, std::stod(argv[3]), std::stoi(argv[4]));
+	std::cout << totalExhaust->size();
+	 
+	/* Output the transformed DAX files */
+	outputDAX(totalExhaust, argv[2]);
+
+	igraph_destroy(&graph);
+}
+
+
+void test_with_small_hardcoded_graph() {
+
 	 igraph_t graph;
 	 igraph_t another;
 	 
@@ -96,7 +137,6 @@ void outputDAX(std::vector<igraph_t *> *, std::string);
 	 
 	 std::cout << "Adding another, duplicate graph into the list. Size: " << list.size() << "\n";
 	 
-
 	 
 	 
 	 igraph_t notDuplicate;
@@ -104,6 +144,11 @@ void outputDAX(std::vector<igraph_t *> *, std::string);
 	 SETVAN(&notDuplicate, "runtime", 0, 30);
 	 addWithoutDuplicates(&list, &notDuplicate);
 	 std::cout << "Added something with same nodecount but different attributes" << list.size() << "\n";
+
+	 igraph_vs_destroy(&del);
+	 igraph_es_destroy(&edel);
+	 igraph_destroy(&another); ///be sure to clear up memory
+
 	 /*
 	 
 	 igraph_t vbasic;
@@ -188,23 +233,5 @@ void outputDAX(std::vector<igraph_t *> *, std::string);
 	 std::cout << stressList->size(); 
 	 
 	 */
-	 if(argc != 5){
-	std::cout << "Usage: takes exactly 4 arguments: \n";
-	std::cout << "base xml file (filename.xml) \n file base name (folder/filename) \n time to run, (double) \n limit on number of permutations (int)";
-	}
-	else {
-	Workflow * workflow = new Workflow("some_workflow");
-	 workflow->load_from_xml(argv[1]);
-	 printEdges(getImported());
-	 printNodes(getImported());
-	 
-	 std::vector<igraph_t *> * totalExhaust = exhaustivePermStart(getImported(), true, std::stod(argv[3]), std::stoi(argv[4]));
-	 std::cout << totalExhaust->size();
-	 
-	 outputDAX(totalExhaust, argv[2]);
-	}
-	 igraph_vs_destroy(&del);
-	 igraph_es_destroy(&edel);
-	 igraph_destroy(&graph);
-	 igraph_destroy(&another); ///be sure to clear up memory
- }
+
+}
