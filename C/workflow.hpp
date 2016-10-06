@@ -38,7 +38,7 @@ public:
      * @brief Loads a complete workflow from an XML filename
      * @param[in] xml_filename The name of the XML file
      */
-    void load_from_xml(const std::string & xml_filename);
+    int load_from_xml(const std::string & xml_filename);
 
     /**
      * @brief Adds a task to the workflow

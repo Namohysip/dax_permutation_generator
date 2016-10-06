@@ -15,6 +15,7 @@ void outputDAX(std::vector<igraph_t *> *, std::string);
 
 void test_with_small_hardcoded_graph();
 
+
 int main (int argc, char* argv[]) {
 	 
 	igraph_i_set_attribute_table(&igraph_cattribute_table); //ALWAYS HAVE THIS. Enables attributes.
@@ -25,11 +26,19 @@ int main (int argc, char* argv[]) {
 		exit(0);
 	}
 
-	if(argc != 5) {
+	// Checking command-line arguments
+	char *dax_file = argv[1];
+	char *output_prefix = argv[2];
+	double timeout;
+	int max_permutations;
+	if((argc != 5) || 
+           (sscanf(argv[3],"%lf",&timeout) != 1) ||
+           (sscanf(argv[4],"%d",&max_permutations) != 1)
+	  ) {
 		std::cerr << "Usage:\n";
 		std::cerr << "  " << argv[0] << " test\n";
 		std::cerr << "  \truns a simple hardcoded test example\n\n";
-		std::cerr << "  " << argv[0] << " <dax file> <output file prefix> <timeout (floating point)> <max # of permutations>\n";
+		std::cerr << "  " << argv[0] << " <dax file> <output file prefix> <timeout (floating point)> <max # of permutations (int)>\n";
 		std::cerr << "  \tExample: " << argv[0] << "./my_dax.xml /tmp/transformed_ 60.0 1000\n";
 		exit(1);
 	}
@@ -39,18 +48,21 @@ int main (int argc, char* argv[]) {
 
 	/* Load the workflow from the DAX file*/
 	Workflow * workflow = new Workflow("some_workflow");
-	workflow->load_from_xml(argv[1]);
+	if (workflow->load_from_xml(dax_file)) {
+	  exit(1);
+	}
 	printEdges(getImported());
 	printNodes(getImported());
 	 
 	/* Compute all transformations */
-	std::vector<igraph_t *> * totalExhaust = exhaustivePermStart(getImported(), true, std::stod(argv[3]), std::stoi(argv[4]));
+	std::vector<igraph_t *> * totalExhaust = exhaustivePermStart(getImported(), true, timeout, max_permutations);
 	std::cout << totalExhaust->size();
 	 
 	/* Output the transformed DAX files */
 	outputDAX(totalExhaust, argv[2]);
 
 	igraph_destroy(&graph);
+	exit(0);
 }
 
 

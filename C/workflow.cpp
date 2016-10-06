@@ -29,7 +29,7 @@ Workflow::~Workflow()
     tasks.clear();
 
 }
-void Workflow::load_from_xml(const std::string &xml_filename)
+int Workflow::load_from_xml(const std::string &xml_filename)
 {
 
 
@@ -41,13 +41,11 @@ void Workflow::load_from_xml(const std::string &xml_filename)
 	igraph_empty(graph, 0, IGRAPH_DIRECTED);
 	
     // XML document creation
-    std::cerr << "Loading XML workflow " << xml_filename << "\n";
     xml_parse_result result = dax_tree.load_file(xml_filename.c_str());
-    std::cerr << result << "\n";
+    //std::cerr << result << "\n";
     if (!result) {
-
-       std::cerr << "Invalid XML file\n";
-       exit(1);
+       	std::cerr << "Invalid DAX file\n";
+	return 1;
     }
 
     // Create file map
@@ -57,6 +55,7 @@ void Workflow::load_from_xml(const std::string &xml_filename)
     xml_node dag = dax_tree.child("adag");
 
     // Loop through job nodes and add files to the filemap
+
     for (xml_node job = dag.child("job"); job; job = job.next_sibling("job"))
     {
 
@@ -97,9 +96,9 @@ void Workflow::load_from_xml(const std::string &xml_filename)
 	    if (file->producer) { // If there was no producer, ignore this since it's some
                                   // static file or something
 		for (int i=0; i < file->consumers.size(); i++) {
-	    	  cout << "NEW EDGE: " << file->producer->id << "->" <<
-                            file->consumers.at(i) << " for file " <<file->filename << " (" <<
-                            file->filesize << " bytes)\n";
+	    	  //cout << "NEW EDGE: " << file->producer->id << "->" <<
+                  //          file->consumers.at(i) << " for file " <<file->filename << " (" <<
+                  //          file->filesize << " bytes)\n";
                   this->add_edge(file->producer, file->consumers.at(i), 
                                      file->filename, file->filesize);
 				igraph_integer_t from = idVals.find(file->producer->id)->second;
@@ -140,8 +139,8 @@ void Workflow::load_from_xml(const std::string &xml_filename)
 	  }
       }
 
-    std::cerr << "XML workflow parsed sucessfully\n";
 	setImported(graph);
+	return 0;
 }
 
 
