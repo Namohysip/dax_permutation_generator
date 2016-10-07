@@ -19,7 +19,7 @@ void test_with_small_hardcoded_graph();
 int main (int argc, char* argv[]) {
 	 
 	igraph_i_set_attribute_table(&igraph_cattribute_table); //ALWAYS HAVE THIS. Enables attributes.
-
+	std::cout << "Test\n";
 	// Test mode
 	if ((argc == 2) && (std::string(argv[1]) == "test")) {
 		test_with_small_hardcoded_graph();	
@@ -45,7 +45,6 @@ int main (int argc, char* argv[]) {
 	}
 
 
-	igraph_t graph;
 
 	/* Load the workflow from the DAX file*/
 	Workflow * workflow = new Workflow("some_workflow");
@@ -62,7 +61,6 @@ int main (int argc, char* argv[]) {
 	/* Output the transformed DAX files */
 	outputDAX(totalExhaust, argv[2]);
 
-	igraph_destroy(&graph);
 	exit(0);
 }
 
