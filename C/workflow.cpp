@@ -32,7 +32,7 @@ Workflow::~Workflow()
 int Workflow::load_from_xml(const std::string &xml_filename)
 {
 
-
+	std::cout << "Adding tasks...\n";
 	igraph_t * graph = new igraph_t;
 	std::map<std::string,int> idVals;
 	std::map<std::string,int>::iterator idIter;
@@ -90,6 +90,7 @@ int Workflow::load_from_xml(const std::string &xml_filename)
         }
     }
 
+	std::cout << "Adding edges based on file dependencies...\n";
     // Build edges based on files
     for(std::map<std::string, File *>::iterator it = file_map.begin(); it != file_map.end(); ++it) {
 	    File *file = it->second;
@@ -112,6 +113,7 @@ int Workflow::load_from_xml(const std::string &xml_filename)
     // TODO: Free the files 
 
 
+	std::cout << "Adding edges based on control dependencies...\n";
     // Build zero-weight edges based on control dependencies (could be very few)
     for (xml_node edge_bottom = dag.child("child"); edge_bottom; edge_bottom = edge_bottom.next_sibling("child"))
       {
@@ -129,7 +131,6 @@ int Workflow::load_from_xml(const std::string &xml_filename)
               } 
             }
  	    if (! already_there) {
-  	      std::cerr << "Adding a zero-weight control edge...\n";
 	      add_edge(source , dest, "control", 0);
 		  igraph_integer_t from = idVals.find(source->id)->second;
 				igraph_integer_t to = idVals.find(dest->id)->second;
@@ -139,6 +140,7 @@ int Workflow::load_from_xml(const std::string &xml_filename)
 	  }
       }
 
+	  std::cout << "Done!\n";
 	setImported(graph);
 	return 0;
 }
