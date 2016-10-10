@@ -12,6 +12,7 @@ bool addWithoutDuplicates( std::vector<igraph_t *> * , igraph_t *);
 std::vector<igraph_t *> * exhaustivePermStart(igraph_t * graph, bool timed = false, double seconds = 0, int goal = 0);
 igraph_t * getImported();
 void outputDAX(std::vector<igraph_t *> *, std::string);
+std::vector<std::string> * exhaustivePermHashStart(igraph_t * graph,  std::string fileBase, double seconds = 0, int goal = 0);
 
 void test_with_small_hardcoded_graph();
 
@@ -31,14 +32,16 @@ int main (int argc, char* argv[]) {
 	char *output_prefix = argv[2];
 	double timeout;
 	int max_permutations;
-	if((argc != 5) || 
+	int hashVal; //whether or not to use hashing
+	if((argc != 6) || 
            (sscanf(argv[3],"%lf",&timeout) != 1) ||
-           (sscanf(argv[4],"%d",&max_permutations) != 1)
+           (sscanf(argv[4],"%d",&max_permutations) != 1) ||
+		   (sscanf(argv[5],"%d", &hashVal) != 1)
 	  ) {
 		std::cerr << "Usage:\n";
 		std::cerr << "  " << argv[0] << " test\n";
 		std::cerr << "  \truns a simple hardcoded test example\n\n";
-		std::cerr << "  " << argv[0] << " <dax file> <output file prefix> <timeout (floating point)> <max # of permutations (int)>\n";
+		std::cerr << "  " << argv[0] << " <dax file> <output file prefix> <timeout (floating point)> <max # of permutations (int)> <hash (int, nonzero to hash)\n";
 		std::cerr << "  \tExample: " << argv[0] << "./my_dax.xml /tmp/transformed 60.0 1000\n";
 		std::cerr << "               (will generate files /tmp/transformed_1.xml, /tmp/transformed_2.xml, ...)\n\n";
 		exit(1);
@@ -51,16 +54,22 @@ int main (int argc, char* argv[]) {
 	if (workflow->load_from_xml(dax_file)) {
 	  exit(1);
 	}
-	printEdges(getImported());
-	printNodes(getImported());
-	 
-	/* Compute all transformations */
-	std::vector<igraph_t *> * totalExhaust = exhaustivePermStart(getImported(), true, timeout, max_permutations);
-	std::cout << totalExhaust->size();
-	 
-	/* Output the transformed DAX files */
-	outputDAX(totalExhaust, argv[2]);
-
+	//printEdges(getImported());
+	//printNodes(getImported());
+	std::cout << "Generating permutations...\n";
+	if(hashVal){
+		/*Compute all transformations with hashing enabled to use up less memory */
+		std::vector<std::string> * hashes = exhaustivePermHashStart(getImported(), argv[2], timeout, max_permutations);
+		std::cout << "Total permutations made: " << hashes->size() << "\n";
+	}
+	else{
+		/* Compute all transformations */
+		std::vector<igraph_t *> * totalExhaust = exhaustivePermStart(getImported(), true, timeout, max_permutations);
+		std::cout << "Total permutations made: " << totalExhaust->size() << "\n";
+		 
+		/* Output the transformed DAX files */
+		outputDAX(totalExhaust, argv[2]);
+	}
 	exit(0);
 }
 
@@ -156,9 +165,43 @@ void test_with_small_hardcoded_graph() {
 	 addWithoutDuplicates(&list, &notDuplicate);
 	 std::cout << "Added something with same nodecount but different attributes" << list.size() << "\n";
 
+	 
+	 igraph_t hash;
+	 int max = 8;
+	 
+	 std::cout << "Add using hash method for series graph of size " << std::to_string(max) << "\n";
+	 igraph_empty(&hash, 0, IGRAPH_DIRECTED);
+	 igraph_add_vertices(&hash, max, 0);
+	 SETVAS(&hash, "id", 0, "0");
+	 SETVAN(&hash, "runtime", 0, 60);
+	 for ( int i = 1; i < max; i++){
+		std::stringstream con;
+		con << i;
+		std::string str = con.str();
+		 SETVAS(&hash, "id", i, str.c_str());
+		 SETVAN(&hash, "runtime", i, 60);
+		 igraph_add_edge(&hash, i-1, i);
+	 }
+	
+	std::vector<std::string> * graphs = exhaustivePermHashStart(&hash, "test", 100, 5000);
+	 std::cout << graphs->size() << "\n";
+	graphs->clear();
+	std::cout << "No problems so far \n";
+	delete(graphs);
+	 std::vector<igraph_t *> * notHashed = exhaustivePermStart(&hash, true, 100, 5000);
+	std::cout << notHashed->size() << "\n";
+	for(std::vector<igraph_t *>::iterator it = notHashed->begin(); it != notHashed->end(); ++it){
+		igraph_destroy(*it);
+	}
+	notHashed->clear();
+	delete(notHashed); 
+	
 	 igraph_vs_destroy(&del);
 	 igraph_es_destroy(&edel);
+	 igraph_destroy(&notDuplicate);
+	 igraph_destroy(&hash);
 	 igraph_destroy(&another); ///be sure to clear up memory
+	 igraph_destroy(&graph);
 
 	 /*
 	 
