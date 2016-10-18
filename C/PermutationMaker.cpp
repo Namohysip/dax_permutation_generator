@@ -379,7 +379,7 @@ bool timedExhaustivePermHash(std::vector<std::string> * graphs, igraph_t * graph
 	if(igraph_vcount(graph)< 2){
 		return true; //base case -- only one node left
 	}
-	if (time < double(clock() - start) / CLOCKS_PER_SEC || graphs->size() > goal){ //time-up case -- return and wrap things up
+	if (time < double(clock() - start) / CLOCKS_PER_SEC || graphs->size() >= goal){ //time-up case -- return and wrap things up
 		return false;
 	}
 	

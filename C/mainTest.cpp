@@ -41,7 +41,7 @@ int main (int argc, char* argv[]) {
 		std::cerr << "Usage:\n";
 		std::cerr << "  " << argv[0] << " test\n";
 		std::cerr << "  \truns a simple hardcoded test example\n\n";
-		std::cerr << "  " << argv[0] << " <dax file> <output file prefix> <timeout (floating point)> <max # of permutations (int)> [hash (int, nonzero to hash)]\n";
+		std::cerr << "  " << argv[0] << " <dax file> <output file prefix> <timeout (floating point)> <max # of permutations (int)> <hash (int, nonzero to hash, zero to disable hashing)>\n";
 		std::cerr << "  \tExample: " << argv[0] << "./my_dax.xml /tmp/transformed 60.0 1000 42\n";
 		std::cerr << "               (will generate files /tmp/transformed_1.xml, /tmp/transformed_2.xml, ...)\n\n";
 		exit(1);
