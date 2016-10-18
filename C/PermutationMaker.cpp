@@ -251,7 +251,7 @@ std::string dagToDAXStr(igraph_t * graph){
 	for(int i = 0; i < igraph_vcount(graph); i++){
 		result += "<job id =\"";
 		result += std::string(VAS(graph, "id", i));
-		result += "\" namespace=\"NAMESPACE\" name=\"Task\" version=\"1.0\" runtime=\"" + std::to_string(VAN(graph, "runtime", i)) + "\">\n\n";
+		result += "\" namespace=\"NAMESPACE\" name=\"Task\" version=\"1.0\" runtime=\"" + std::to_string(VAN(graph, "runtime", i)) + "\"/>\n\n";
 	}
 	result += "\n";
 	for (int i = 0; i < igraph_vcount(graph); i++) {
@@ -280,7 +280,7 @@ std::string dagToDAXStr(igraph_t * graph){
 
 /*Converts the given graph into a DAX .xml format and then outputs the result. */
 void dagToDAX(igraph_t * graph, std::string filebase, int permCount){
-	std::string name = filebase + "_p" + std::to_string(permCount) + ".xml";
+	std::string name = filebase + "_p" + std::to_string(permCount) + ".dax";
 	std::ofstream permFile(name);
 	if(permFile.is_open()){
 		//preamble to all files
@@ -345,7 +345,7 @@ void outputDAX(std::vector<igraph_t *> * graphs, std::string fileBase){
 
 /*Same as outputDAX, but directly using the string given.*/
 void outputDAXStr(std::string graph, std::string filebase){
-	std::string name = filebase + "_p" + std::to_string(permCount) + ".xml";
+	std::string name = filebase + "_p" + std::to_string(permCount) + ".dax";
 	std::ofstream permFile(name);
 	permCount++;
 	if(permFile.is_open()) {
