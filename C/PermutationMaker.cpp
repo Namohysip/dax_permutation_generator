@@ -1,6 +1,7 @@
 #include <igraph.h>
 #include <algorithm>
 #include <iostream>
+#include <stdlib.h>
 #include <vector>
 #include <string.h>
 #include <fstream>
@@ -191,8 +192,7 @@ bool timedExhaustivePerm(std::vector<igraph_t *> * graphs, igraph_t * graph, dou
 	if(igraph_vcount(graph)< 2){
 		return true; //base case -- only one node left
 	}
-	if (time < double(clock() - start) / CLOCKS_PER_SEC || graphs->size() > goal){ //time-up case -- return and wrap things up
-		return false;
+	if (time < double(clock() - start) / CLOCKS_PER_SEC || graphs->size() >= goal){ //time-up case -- return and wrap things up	return false;
 	}
 	
 	if(graphs->size() % 1000 == 0){
@@ -379,7 +379,7 @@ bool timedExhaustivePermHash(std::vector<std::string> * graphs, igraph_t * graph
 	if(igraph_vcount(graph)< 2){
 		return true; //base case -- only one node left
 	}
-	if (time < double(clock() - start) / CLOCKS_PER_SEC || graphs->size() >= goal){ //time-up case -- return and wrap things up
+	if (time < double(clock() - start) / CLOCKS_PER_SEC || graphs->size() > goal){ //time-up case -- return and wrap things up
 		return false;
 	}
 	
@@ -418,5 +418,61 @@ std::vector<std::string> * exhaustivePermHashStart(igraph_t * graph, std::string
 	addHashAndOutput(graphs, graph, fileBase);
 		clock_t start = clock();
 		timedExhaustivePermHash(graphs, graph, seconds, start, goal, fileBase);
+	return graphs;
+}
+
+/*Naive implementation of a randomized permutation.
+Picks a random graph, picks two random nodes from that graph,
+and combines them. If it works, it's added to the list.*/
+std::vector<igraph_t *> * randomizedPerm(igraph_t * graph, double time, int max, std::string fileBase){
+	srand((double) clock());
+	int failures = 0; //failure ciunt for the same nodes being picked, or an illegal graph is made
+	int attempts = 0; //total attempt count
+	clock_t start = clock(); //timer
+	std::vector<igraph_t *> * graphs = new std::vector<igraph_t*>;
+	graphs->push_back(graph);
+	while(graphs->size() < max && time > double(clock() - start) / CLOCKS_PER_SEC){ 
+	//when time runs out or the goal permutation count is met, whichever comes first.
+		attempts++;
+		igraph_t * sourceGraph = graphs->at(rand() % graphs->size()); //get a random graph already permuted
+		int node1 = rand() % igraph_vcount(sourceGraph);
+		int node2 = rand() % igraph_vcount(sourceGraph);
+		if(node1 != node2){
+			//copy, combine two random nodes, see if it's legal and not already done
+			igraph_t * newGraph = new igraph_t; 
+			igraph_copy(newGraph, sourceGraph);
+			igraph_integer_t node1_g = node1;
+			igraph_integer_t node2_g = node2;
+			if (node1 < node2){
+				combine(newGraph, node1_g, node2_g);
+			}
+			else{
+				combine(newGraph, node2_g, node1_g);
+			}
+			igraph_bool_t legal;
+			igraph_is_dag(newGraph, &legal);
+			if(legal){
+				if(! addWithoutDuplicates(graphs, newGraph)){
+					igraph_destroy(newGraph);
+					delete(newGraph);
+				}
+				else{
+					if(graphs->size() % 1000 == 0){
+						std::cout << "Made these many permutations: " << graphs->size() << "\n";
+					}
+				}
+			}
+			else {
+				failures++;
+				igraph_destroy(newGraph);
+				delete(newGraph);
+			}
+		}
+		else{
+			failures++;
+		}
+	}
+	std::cout << "Made these many illegal graphs: " << failures << "\n";
+	std::cout << "attempted making a graph this many times: " << attempts << "\n";
 	return graphs;
 }
