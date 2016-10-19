@@ -13,6 +13,7 @@ std::vector<igraph_t *> * exhaustivePermStart(igraph_t * graph, bool timed = fal
 igraph_t * getImported();
 void outputDAX(std::vector<igraph_t *> *, std::string);
 std::vector<std::string> * exhaustivePermHashStart(igraph_t * graph,  std::string fileBase, double seconds = 0, int goal = 0);
+std::vector<igraph_t *> * randomizedPerm(igraph_t * graph, double time, int max, std::string fileBase);
 
 void test_with_small_hardcoded_graph();
 
@@ -167,9 +168,9 @@ void test_with_small_hardcoded_graph() {
 
 	 
 	 igraph_t hash;
-	 int max = 8;
+	 int max = 30;
 	 
-	 std::cout << "Add using hash method for series graph of size " << std::to_string(max) << "\n";
+	// std::cout << "Add using hash method for series graph of size " << std::to_string(max) << "\n";
 	 igraph_empty(&hash, 0, IGRAPH_DIRECTED);
 	 igraph_add_vertices(&hash, max, 0);
 	 SETVAS(&hash, "id", 0, "0");
@@ -182,11 +183,10 @@ void test_with_small_hardcoded_graph() {
 		 SETVAN(&hash, "runtime", i, 60);
 		 igraph_add_edge(&hash, i-1, i);
 	 }
-	
+	/*
 	std::vector<std::string> * graphs = exhaustivePermHashStart(&hash, "test", 100, 5000);
 	 std::cout << graphs->size() << "\n";
 	graphs->clear();
-	std::cout << "No problems so far \n";
 	delete(graphs);
 	 std::vector<igraph_t *> * notHashed = exhaustivePermStart(&hash, true, 100, 5000);
 	std::cout << notHashed->size() << "\n";
@@ -195,6 +195,36 @@ void test_with_small_hardcoded_graph() {
 	}
 	notHashed->clear();
 	delete(notHashed); 
+	*/
+	
+	std::cout << "Testing randomized method\n";
+	std::vector<igraph_t *> * randomized = randomizedPerm(&hash, 100, 20000, "test");
+	std::cout << randomized->size() << "\n";
+	
+	std::cout << "Original graph size: " << std::to_string(max) << "\n";
+	std::cout << "Average graph size: ";
+	int total = 0;
+	for(std::vector<igraph_t *>::iterator it = randomized->begin(); it != randomized->end(); ++it){
+		total += igraph_vcount(*it);
+	}
+	std::cout << std::to_string(total / randomized->size()); 
+	
+	Workflow * workflow = new Workflow("some_workflow");
+	if (workflow->load_from_xml("workflows/1000Genome.xml")) {
+	  exit(1);
+	}
+	std::cout << "Edge count: " << igraph_ecount(getImported()) << "\n";
+	std::cout << "Testing randomized method on workflow\n";
+	std::vector<igraph_t *> * workflowRand = randomizedPerm(getImported(), 100, 20000, "test");
+	std::cout << workflowRand->size() << "\n";
+	
+	std::cout << "Original graph size: " << igraph_vcount(getImported()) << "\n";
+	std::cout << "Average graph size: ";
+	int workTotal = 0;
+	for(std::vector<igraph_t *>::iterator it = workflowRand->begin(); it != workflowRand->end(); ++it){
+		workTotal += igraph_vcount(*it);
+	}
+	std::cout << std::to_string(workTotal / workflowRand->size());
 	
 	 igraph_vs_destroy(&del);
 	 igraph_es_destroy(&edel);
