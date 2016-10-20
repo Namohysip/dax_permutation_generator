@@ -4,6 +4,7 @@
 #include <sstream>
 #include "workflow.hpp"
 #include <string>
+#include <string.h>
 
 void printEdges(igraph_t*);
 void printNodes(igraph_t*);
@@ -36,14 +37,14 @@ int main (int argc, char* argv[]) {
 	int hashVal; //whether or not to use hashing
 	if((argc != 6) || 
            (sscanf(argv[3],"%lf",&timeout) != 1) ||
-           (sscanf(argv[4],"%d",&max_permutations) != 1) ||
-		   (sscanf(argv[5],"%d", &hashVal) != 1)
+           (sscanf(argv[4],"%d",&max_permutations) != 1)
 	  ) {
 		std::cerr << "Usage:\n";
 		std::cerr << "  " << argv[0] << " test\n";
 		std::cerr << "  \truns a simple hardcoded test example\n\n";
-		std::cerr << "  " << argv[0] << " <dax file> <output file prefix> <timeout (floating point)> <max # of permutations (int)> <hash (int, nonzero to hash, zero to disable hashing)>\n";
-		std::cerr << "  \tExample: " << argv[0] << "./my_dax.xml /tmp/transformed 60.0 1000 42\n";
+		std::cerr << "  " << argv[0] << " <dax file> <output file prefix> <timeout (floating point)> <max # of permutations (int)> <clustering method>\n";
+		std::cerr << "Current options for clustering: exhaustive limited hashed random\n";
+		std::cerr << "  \tExample: " << argv[0] << "./my_dax.xml /tmp/transformed 60.0 1000 hashed\n";
 		std::cerr << "               (will generate files /tmp/transformed_1.xml, /tmp/transformed_2.xml, ...)\n\n";
 		exit(1);
 	}
@@ -58,18 +59,29 @@ int main (int argc, char* argv[]) {
 	//printEdges(getImported());
 	//printNodes(getImported());
 	std::cout << "Generating permutations...\n";
-	if(hashVal){
+	std::vector<igraph_t *> * clusterings;
+	if(!strcmp(argv[5], "exhaustive")){
+		clusterings = exhaustivePermStart(getImported(), false, timeout, max_permutations);
+		outputDAX(clusterings, argv[2]);
+		
+	}
+	else if (!strcmp(argv[5], "limited")){
+		clusterings = exhaustivePermStart(getImported(), true, timeout, max_permutations);
+		std::cout << "Total permutations made: " << clusterings->size() << "\n";
+		outputDAX(clusterings, argv[2]);
+	}
+	else if (!strcmp(argv[5], "hashed")){
 		/*Compute all transformations with hashing enabled to use up less memory */
 		std::vector<std::string> * hashes = exhaustivePermHashStart(getImported(), argv[2], timeout, max_permutations);
 		std::cout << "Total permutations made: " << hashes->size() << "\n";
 	}
-	else{
-		/* Compute all transformations */
-		std::vector<igraph_t *> * totalExhaust = exhaustivePermStart(getImported(), true, timeout, max_permutations);
-		std::cout << "Total permutations made: " << totalExhaust->size() << "\n";
-		 
-		/* Output the transformed DAX files */
-		outputDAX(totalExhaust, argv[2]);
+	else if(!strcmp(argv[5], "random")){
+		clusterings = randomizedPerm(getImported(), timeout, max_permutations, argv[2]);
+		std::cout << "Total permutations made: " << clusterings->size() << "\n";
+	}
+	else {
+		std::cerr << "This type of clustering option is not supported.\n";
+		std::cerr << "Current options for clustering: exhaustive limited hashed random\n";
 	}
 	exit(0);
 }
@@ -198,7 +210,7 @@ void test_with_small_hardcoded_graph() {
 	*/
 	
 	std::cout << "Testing randomized method\n";
-	std::vector<igraph_t *> * randomized = randomizedPerm(&hash, 100, 20000, "test");
+	std::vector<igraph_t *> * randomized = randomizedPerm(&hash, 1, 20000, "test");
 	std::cout << randomized->size() << "\n";
 	
 	std::cout << "Original graph size: " << std::to_string(max) << "\n";
@@ -210,7 +222,7 @@ void test_with_small_hardcoded_graph() {
 	std::cout << std::to_string(total / randomized->size()); 
 	
 	Workflow * workflow = new Workflow("some_workflow");
-	if (workflow->load_from_xml("workflows/1000Genome.xml")) {
+	if (workflow->load_from_xml("workflows/CyberShake_1.xml")) {
 	  exit(1);
 	}
 	std::cout << "Edge count: " << igraph_ecount(getImported()) << "\n";
