@@ -193,6 +193,7 @@ bool timedExhaustivePerm(std::vector<igraph_t *> * graphs, igraph_t * graph, dou
 		return true; //base case -- only one node left
 	}
 	if (time < double(clock() - start) / CLOCKS_PER_SEC || graphs->size() >= goal){ //time-up case -- return and wrap things up	return false;
+		return false;
 	}
 	
 	if(graphs->size() % 1000 == 0){
@@ -431,6 +432,7 @@ std::vector<igraph_t *> * randomizedPerm(igraph_t * graph, double time, int max,
 	clock_t start = clock(); //timer
 	std::vector<igraph_t *> * graphs = new std::vector<igraph_t*>;
 	graphs->push_back(graph);
+	dagToDAX(graph, fileBase, 0);
 	while(graphs->size() < max && time > double(clock() - start) / CLOCKS_PER_SEC){ 
 	//when time runs out or the goal permutation count is met, whichever comes first.
 		attempts++;
@@ -460,6 +462,7 @@ std::vector<igraph_t *> * randomizedPerm(igraph_t * graph, double time, int max,
 					if(graphs->size() % 1000 == 0){
 						std::cout << "Made these many permutations: " << graphs->size() << "\n";
 					}
+					dagToDAX(newGraph, fileBase, graphs->size() - 1);
 				}
 			}
 			else {
@@ -468,11 +471,8 @@ std::vector<igraph_t *> * randomizedPerm(igraph_t * graph, double time, int max,
 				delete(newGraph);
 			}
 		}
-		else{
-			failures++;
-		}
 	}
 	std::cout << "Made these many illegal graphs: " << failures << "\n";
-	std::cout << "attempted making a graph this many times: " << attempts << "\n";
+	std::cout << "Attempted making a graph this many times: " << attempts << "\n";
 	return graphs;
 }
