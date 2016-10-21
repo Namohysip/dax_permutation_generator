@@ -140,11 +140,11 @@ bool checkAllNodes (igraph_t * graph1, igraph_t * graph2) {
 
 /*Adds an igraph to the UN-HASHED list of igraphs used. Without adding duplicate graphs.*/
 bool addWithoutDuplicates( std::vector<igraph_t *> * graphs, igraph_t * toAdd) {
-	for(std::vector<igraph_t*>::iterator it = graphs->begin(); it != graphs->end(); ++it){
-		if (checkAllNodes( toAdd, *it)){
-			return false;
+		for(std::vector<igraph_t*>::iterator it = graphs->begin(); it != graphs->end(); ++it){
+			if (checkAllNodes( toAdd, *it)){
+				return false;
+			}
 		}
-	}
 	graphs->push_back(toAdd);
 	return true;
 }
@@ -422,6 +422,45 @@ std::vector<std::string> * exhaustivePermHashStart(igraph_t * graph, std::string
 	return graphs;
 }
 
+
+bool makeRandomCombination(std::vector<igraph_t *> * graphs, igraph_t * source, int iteration, std::string fileBase){
+	int node1 = rand() % igraph_vcount(source);
+	int node2 = rand() % igraph_vcount(source);
+	if(node1 != node2){
+		//copy, combine two random nodes, see if it's legal and not already done
+		igraph_t * newGraph = new igraph_t; 
+		igraph_copy(newGraph, source);
+		igraph_integer_t node1_g = node1;
+		igraph_integer_t node2_g = node2;
+		if (node1 < node2){
+			combine(newGraph, node1_g, node2_g);
+		}
+		else{
+			combine(newGraph, node2_g, node1_g);
+		}
+		igraph_bool_t legal;
+		igraph_is_dag(newGraph, &legal);
+		if((bool) legal){
+			if(! addWithoutDuplicates(graphs, newGraph)){
+				igraph_destroy(newGraph);
+				delete(newGraph);
+				return false;
+			}
+			else{
+				dagToDAX(newGraph, fileBase, iteration);
+			}
+		}
+		else {
+			igraph_destroy(newGraph);
+			delete(newGraph);
+			return false;
+		}
+	}
+	else{
+		return false;
+	}
+	return true;
+}
 /*Naive implementation of a randomized permutation.
 Picks a random graph, picks two random nodes from that graph,
 and combines them. If it works, it's added to the list.*/
@@ -437,42 +476,46 @@ std::vector<igraph_t *> * randomizedPerm(igraph_t * graph, double time, int max,
 	//when time runs out or the goal permutation count is met, whichever comes first.
 		attempts++;
 		igraph_t * sourceGraph = graphs->at(rand() % graphs->size()); //get a random graph already permuted
-		int node1 = rand() % igraph_vcount(sourceGraph);
-		int node2 = rand() % igraph_vcount(sourceGraph);
-		if(node1 != node2){
-			//copy, combine two random nodes, see if it's legal and not already done
-			igraph_t * newGraph = new igraph_t; 
-			igraph_copy(newGraph, sourceGraph);
-			igraph_integer_t node1_g = node1;
-			igraph_integer_t node2_g = node2;
-			if (node1 < node2){
-				combine(newGraph, node1_g, node2_g);
-			}
-			else{
-				combine(newGraph, node2_g, node1_g);
-			}
-			igraph_bool_t legal;
-			igraph_is_dag(newGraph, &legal);
-			if(legal){
-				if(! addWithoutDuplicates(graphs, newGraph)){
-					igraph_destroy(newGraph);
-					delete(newGraph);
-				}
-				else{
-					if(graphs->size() % 1000 == 0){
-						std::cout << "Made these many permutations: " << graphs->size() << "\n";
-					}
-					dagToDAX(newGraph, fileBase, graphs->size() - 1);
-				}
-			}
-			else {
-				failures++;
-				igraph_destroy(newGraph);
-				delete(newGraph);
+		if(makeRandomCombination(graphs, sourceGraph, graphs->size() - 1, fileBase)){
+			if(graphs->size() % 1000 == 0){
+				std::cout << "Made these many permutations: " << graphs->size() << "\n";
 			}
 		}
 	}
 	std::cout << "Made these many illegal graphs: " << failures << "\n";
 	std::cout << "Attempted making a graph this many times: " << attempts << "\n";
 	return graphs;
+}
+
+int RandomizedPermEvenSpread(igraph_t * graph, int maxPerLevel, std::string fileBase){
+	srand((double) clock());
+	int attempt_cap = 20;
+	std::vector<igraph_t *> * open = new std::vector<igraph_t *>;
+	dagToDAX(graph, fileBase, 0);
+	int i;
+	for(i = 0; i < maxPerLevel; i++){ //create the original batch of permutations from the original graph.
+		int attempt = 0;
+		while(!makeRandomCombination(open,graph, i+1, fileBase) && attempt < attempt_cap){
+			attempt++;
+		}
+	}
+	//For each if the original batch, make a new permutation by combining two of its nodes.
+	while(open->size() > 0){
+		igraph_t * iteration = open->front(); //treats this as a breadth-first search.
+		int attempt = 0;
+		while(!makeRandomCombination(open, iteration, i+1, fileBase) && attempt < attempt_cap){
+			attempt++;
+		}
+		//Only has to check for duplicates at the same level,
+		//since all other permutations would have a different task count.
+		open->erase(open->begin());
+		igraph_destroy(iteration);
+		
+		delete(iteration);
+		i++;
+		if(i % 1000 == 0){
+				std::cout << "Made these many permutations: " << i << "\n";
+		}
+	}
+	return i;
 }
