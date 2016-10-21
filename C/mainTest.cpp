@@ -15,12 +15,13 @@ igraph_t * getImported();
 void outputDAX(std::vector<igraph_t *> *, std::string);
 std::vector<std::string> * exhaustivePermHashStart(igraph_t * graph,  std::string fileBase, double seconds = 0, int goal = 0);
 std::vector<igraph_t *> * randomizedPerm(igraph_t * graph, double time, int max, std::string fileBase);
+int RandomizedPermEvenSpread(igraph_t * graph, int maxPerLevel, std::string fileBase);
 
 void test_with_small_hardcoded_graph();
 
 
 int main (int argc, char* argv[]) {
-	 
+	 std::string options = "exhaustive limited hashed random randomLimited";
 	igraph_i_set_attribute_table(&igraph_cattribute_table); //ALWAYS HAVE THIS. Enables attributes.
 	std::cout << "Test\n";
 	// Test mode
@@ -42,8 +43,8 @@ int main (int argc, char* argv[]) {
 		std::cerr << "Usage:\n";
 		std::cerr << "  " << argv[0] << " test\n";
 		std::cerr << "  \truns a simple hardcoded test example\n\n";
-		std::cerr << "  " << argv[0] << " <dax file> <output file prefix> <timeout (floating point)> <max # of permutations (int)> <clustering method>\n";
-		std::cerr << "Current options for clustering: exhaustive limited hashed random\n";
+		std::cerr << "  " << argv[0] << " <dax file> <output file prefix> <timeout (floating point)> <max # of permutations OR base number of permutations for randomLimited (int)> <clustering method>\n";
+		std::cerr << "Current options for clustering: " << options << "\n";
 		std::cerr << "  \tExample: " << argv[0] << "./my_dax.xml /tmp/transformed 60.0 1000 hashed\n";
 		std::cerr << "               (will generate files /tmp/transformed_1.xml, /tmp/transformed_2.xml, ...)\n\n";
 		exit(1);
@@ -79,9 +80,12 @@ int main (int argc, char* argv[]) {
 		clusterings = randomizedPerm(getImported(), timeout, max_permutations, argv[2]);
 		std::cout << "Total permutations made: " << clusterings->size() << "\n";
 	}
+	else if(!strcmp(argv[5], "randomLimited")){
+		std::cout << "Total permutations made: " << RandomizedPermEvenSpread(getImported(), max_permutations, output_prefix) << "\n";
+	}
 	else {
 		std::cerr << "This type of clustering option is not supported.\n";
-		std::cerr << "Current options for clustering: exhaustive limited hashed random\n";
+		std::cerr << "Current options for clustering: " << options << "\n";
 	}
 	exit(0);
 }
