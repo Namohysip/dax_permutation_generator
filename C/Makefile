@@ -1,14 +1,14 @@
 
 CXX = g++
 #CXX_FLAGS = -std=c++11 -Ofast
-CXX_FLAGS = -std=c++11 -g
+CXX_FLAGS = -std=c++11 -pg
 EXEC = dax_permutation_generator
 
 
 
 default: $(EXEC)
 
-OBJECTS= mainTest.o workflow.o pugixml.o DAGUtilities.o PermutationMaker.o sha256.o
+OBJECTS= mainTest.o workflow.o pugixml.o DAGUtilities.o PermutationMaker.o sha256.o hardCodedTest.o
 HEADERS= workflow.hpp sha256.hpp
 IGRAPH_HEADERS= -I/usr/local/include/igraph/ -I/usr/local/igraph/
 IGRAPH_LIB= -L/usr/local/lib -ligraph 
@@ -31,6 +31,9 @@ pugixml.o: pugixml-1.7/pugixml.cpp pugixml-1.7/pugiconfig.hpp pugixml-1.7/pugixm
 
 DAGUtilities.o: DAGUtilities.cpp $(HEADERS)
 	$(CXX) $(CXX_FLAGS) $(IGRAPH_HEADERS) -c DAGUtilities.cpp -o DAGUtilities.o
+
+hardCodedTest.o: hardCodedTest.cpp $(HEADERS)
+	$(CXX) $(CXX_FLAGS) $(IGRAPH_HEADERS) -c hardCodedTest.cpp -o hardCodedTest.o
 	
 mainTest.o: mainTest.cpp $(HEADERS)
 	$(CXX) $(CXX_FLAGS) $(IGRAPH_HEADERS) -c mainTest.cpp -o mainTest.o
