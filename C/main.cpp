@@ -21,7 +21,9 @@ struct MainArguments
 	bool just_a_test; 
 	std::string dax_filename;
 	std::string output_prefix;
+	std::string method;	
 	double timeout = 0.0;
+	int max_permutations = 0;
 
 	bool abort = false;  // set to true while parsing argument if error
 	std::string abortReason;  // Error message to print
@@ -70,130 +72,35 @@ int parse_opt(int key, char *arg, struct argp_state *state)
 	if ((sscanf(arg, "%lf",&(main_args->timeout)) != 1) ||
             (main_args->timeout < 0)) {
 	  main_args->abort = true;
-	  main_args->abortReason += "\n invalid timeout value '" +
+	  main_args->abortReason += "\n  invalid timeout value '" +
 					std::string(arg) + "'";
  	} 
 	break;
     }
-
-
-#if 0
-    case 'k':
+    case 'p':
     {
-        main_args->terminate_with_last_workflow = true;
-        break;
-    }
-    case 'W':
-    {
-        // format:   FILENAME[:start_time]
-        vector<string> parts;
-        boost::split(parts, (const std::string)std::string(arg),
-                     boost::is_any_of(":"), boost::token_compress_on);
-
-        if (access(parts.at(0).c_str(), R_OK) == -1)
-        {
-            main_args->abort = true;
-            main_args->abortReason += "\n  invalid WORKFLOW_FILE argument: file '" + parts.at(0) + "' cannot be read";
-        }
-        else
-        {
-            string workflow_filename = parts.at(0).c_str();
-            double workflow_start_time = 0.0;
-
-            if (parts.size() == 2)
-                workflow_start_time = std::stod(parts.at(1));
-
-            MainArguments::WorkflowDescription desc;
-            desc.filename = absolute_filename(workflow_filename);
-            desc.name = generate_sha1_string(desc.filename);
-	    desc.workload_name = desc.name;
-            desc.start_time = workflow_start_time;
-
-            XBT_INFO("Workflow '%s' corresponds to workflow file '%s'.", desc.name.c_str(), desc.filename.c_str());
-            main_args->workflow_descriptions.push_back(desc);
-        }
-        break;
-    }
-    case 'e':
-        main_args->export_prefix = arg;
-        break;
-    case 'E':
-        main_args->energy_used = true;
-        break;
-    case 'h':
-        main_args->allow_space_sharing = true;
-        break;
-    case 'H':
-        main_args->redis_hostname = arg;
-        break;
-    case 'l':
-    {
-        int ivalue = stoi(arg);
-
-        if ((ivalue < -1) || (ivalue == 0))
-        {
-            main_args->abort = true;
-            main_args->abortReason += "\n  invalid M positional argument (" + to_string(ivalue) + "): it should either be -1 or a strictly positive value";
-        }
-
-        main_args->limit_machines_count = ivalue;
-        break;
-    }
-    case 'L':
-    {
-        main_args->limit_machines_count_by_workload = true;
-        break;
+	if ((sscanf(arg, "%d",&(main_args->max_permutations)) != 1) ||
+            (main_args->timeout < 0)) {
+	  main_args->abort = true;
+	  main_args->abortReason += "\n  invalid max permutations value '" +
+					std::string(arg) + "'";
+ 	} 
+	break;
     }
     case 'm':
-        main_args->master_host_name = arg;
-        break;
-    case 'P':
     {
-        int ivalue = stoi(arg);
-
-        if ((ivalue <= 0) || (ivalue > 65535))
-        {
-            main_args->abort = true;
-            main_args->abortReason += "\n  invalid PORT positional argument (" + to_string(ivalue) +
-                                     "): it should be a valid port: integer in range [1,65535].";
+	main_args->method = (std::string) arg;
+	if ((main_args->method != "limited") && 
+	    (main_args->method != "exhaustive") && 
+	    (main_args->method != "hashed") && 
+	    (main_args->method != "random") && 
+	    (main_args->method != "randomLimited")) {
+	  main_args->abort = true;
+	  main_args->abortReason += "\n  invalid method '" + std::string(arg) + "'";
         }
-
-        main_args->redis_port = ivalue;
-        break;
+	break;
     }
-    case 'q':
-        main_args->verbosity = VerbosityLevel::QUIET;
-        break;
-    case 's':
-        main_args->socket_filename = arg;
-        break;
-    case 't':
-        main_args->enable_simgrid_process_tracing = true;
-        break;
-    case 'T':
-        main_args->enable_schedule_tracing = false;
-        break;
-    case 'v':
-    {
-        string sArg = arg;
-        boost::to_lower(sArg);
-        if (sArg == "quiet")
-            main_args->verbosity = VerbosityLevel::QUIET;
-        else if (sArg == "network-only")
-            main_args->verbosity = VerbosityLevel::NETWORK_ONLY;
-        else if (sArg == "information")
-            main_args->verbosity = VerbosityLevel::INFORMATION;
-        else if (sArg == "debug")
-            main_args->verbosity = VerbosityLevel::DEBUG;
-        else
-        {
-            main_args->abort = true;
-            main_args->abortReason += "\n  invalid VERBOSITY_LEVEL argument: '" + string(sArg) + "' is not in {quiet, network-only, information, debug}.";
-        }
-        break;
-    }
-#endif
-    }
+    } // end switch
 
     return 0;
 }
@@ -212,6 +119,8 @@ bool parse_main_args(int argc, char * argv[], MainArguments & main_args)
         {"dax", 'd', "FILENAME", 0, "The input DAX file with the original workflow (string, required)", 0},
         {"output", 'o', "PATH_PREFIX", 0, "The filepath prefix for generating output DAX files (string, required)", 0},
         {"timeout", 't', "SECONDS", 0, "Time out value (float, default: 0 - no timeout)", 0},
+        {"max-permutations", 'p', "COUNT", 0, "Maximum number of permutations to generate (integer, default: 0 - no maximum)", 0},
+        {"method", 'm', "NAME", 0, "Workflow generation  method (string, required): limited, exhaustive, hashed, random, randomLimited", 0},
         {"test", 'T', 0, 0, "Only run a hard-coded test for iGraph", 0},
         {0, '\0', 0, 0, 0, 0} // The options array must be NULL-terminated
     };
@@ -233,12 +142,17 @@ bool parse_main_args(int argc, char * argv[], MainArguments & main_args)
         main_args.abort = true;
         main_args.abortReason += "\n  missing output prefix argument (-o)";
       }
+      // We need a method
+      if (main_args.method == "") {
+        main_args.abort = true;
+        main_args.abortReason += "\n  missing method argument (-m)";
+      }
 
     }
 
     if (main_args.abort)
     {
-        fprintf(stderr, "Error:%s\n", main_args.abortReason.c_str());
+        fprintf(stderr, "Aborting:%s\n", main_args.abortReason.c_str());
         return false;
     }
 
@@ -263,28 +177,12 @@ int main (int argc, char* argv[]) {
 	}
 
 	// Getting command-line arguments
-	const char *dax_file = main_args.dax_filename.c_str();
-	const char *output_prefix = main_args.output_prefix.c_str();
+	std::string dax_file = main_args.dax_filename;
+	std::string output_prefix = output_prefix;
+	std::string method = main_args.method;
 	double timeout = main_args.timeout;
-	int max_permutations;
-	int hashVal; //whether or not to use hashing
-
-	if((argc != 6) || 
-           (sscanf(argv[3],"%lf",&timeout) != 1) ||
-           (sscanf(argv[4],"%d",&max_permutations) != 1)
-	  ) {
-		std::cerr << "Usage:\n";
-		std::cerr << "  " << argv[0] << " test\n";
-		std::cerr << "  \truns a simple hardcoded test example\n\n";
-		std::cerr << "  " << argv[0] << " <dax file> <output file prefix> <timeout (floating point)> <max # of permutations OR base number of permutations for randomLimited (int)> <clustering method>\n";
-		std::cerr << "Current options for clustering: " << options << "\n";
-		std::cerr << "  \tExample: " << argv[0] << "./my_dax.xml /tmp/transformed 60.0 1000 hashed\n";
-		std::cerr << "               (will generate files /tmp/transformed_1.xml, /tmp/transformed_2.xml, ...)\n\n";
-		exit(1);
-	}
-
-
-
+	double max_permutations = main_args.max_permutations;
+	
 	/* Load the workflow from the DAX file*/
 	Workflow * workflow = new Workflow("some_workflow");
 	if (workflow->load_from_xml(dax_file)) {
@@ -294,26 +192,26 @@ int main (int argc, char* argv[]) {
 	//printNodes(getImported());
 	std::cout << "Generating permutations...\n";
 	std::vector<igraph_t *> * clusterings;
-	if(!strcmp(argv[5], "exhaustive")){
+	if(method == "exhaustive"){
 		clusterings = exhaustivePermStart(getImported(), false, timeout, max_permutations);
-		outputDAX(clusterings, argv[2]);
+		outputDAX(clusterings, output_prefix);
 		
 	}
-	else if (!strcmp(argv[5], "limited")){
+	else if (method == "limited"){
 		clusterings = exhaustivePermStart(getImported(), true, timeout, max_permutations);
 		std::cout << "Total permutations made: " << clusterings->size() << "\n";
-		outputDAX(clusterings, argv[2]);
+		outputDAX(clusterings, output_prefix);
 	}
-	else if (!strcmp(argv[5], "hashed")){
+	else if (method == "hashed"){
 		/*Compute all transformations with hashing enabled to use up less memory */
-		std::vector<std::string> * hashes = exhaustivePermHashStart(getImported(), argv[2], timeout, max_permutations);
+		std::vector<std::string> * hashes = exhaustivePermHashStart(getImported(), output_prefix, timeout, max_permutations);
 		std::cout << "Total permutations made: " << hashes->size() << "\n";
 	}
-	else if(!strcmp(argv[5], "random")){
-		clusterings = randomizedPerm(getImported(), timeout, max_permutations, argv[2]);
+	else if(method == "random"){
+		clusterings = randomizedPerm(getImported(), timeout, max_permutations, output_prefix);
 		std::cout << "Total permutations made: " << clusterings->size() << "\n";
 	}
-	else if(!strcmp(argv[5], "randomLimited")){
+	else if(method == "randomLimited"){
 		std::cout << "Total permutations made: " << RandomizedPermEvenSpread(getImported(), max_permutations, output_prefix) << "\n";
 	}
 	else {
