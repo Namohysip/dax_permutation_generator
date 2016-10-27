@@ -3,7 +3,8 @@
  * @brief Contains workflow-related classes
  */
 
-#pragma once
+#ifndef WORKFLOW_HPP
+#define WORKFLOW_HPP
 
 #include <string>
 #include <vector>
@@ -152,3 +153,4 @@ public:
 
 
 
+#endif
