@@ -6,10 +6,10 @@
 #include <string.h>
 #include <fstream>
 #include <ctime>
-#include "sha256.hpp"
 
-void printNodes(igraph_t *);
-void printEdges(igraph_t *);
+#include "sha256.hpp"
+#include "DAGUtilities.hpp"
+#include "PermutationMaker.hpp"
 
 int permCount = 0;
 

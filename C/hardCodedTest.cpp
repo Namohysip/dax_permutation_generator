@@ -6,16 +6,9 @@
 #include <string>
 #include <string.h>
 
-void printEdges(igraph_t*);
-void printNodes(igraph_t*);
-void combine(igraph_t * , igraph_integer_t, igraph_integer_t);
-bool addWithoutDuplicates( std::vector<igraph_t *> * , igraph_t *);
-std::vector<igraph_t *> * exhaustivePermStart(igraph_t * graph, bool timed = false, double seconds = 0, int goal = 0);
-igraph_t * getImported();
-void outputDAX(std::vector<igraph_t *> *, std::string);
-std::vector<std::string> * exhaustivePermHashStart(igraph_t * graph,  std::string fileBase, double seconds = 0, int goal = 0);
-std::vector<igraph_t *> * randomizedPerm(igraph_t * graph, double time, int max, std::string fileBase);
-int RandomizedPermEvenSpread(igraph_t * graph, int maxPerLevel, std::string fileBase);
+#include "DAGUtilities.hpp"
+#include "PermutationMaker.hpp"
+
 
 void test_with_small_hardcoded_graph();
 

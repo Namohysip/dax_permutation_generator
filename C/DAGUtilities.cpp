@@ -1,6 +1,8 @@
 #include <iostream>
 #include <igraph.h>
 
+#include "DAGUtilities.hpp"
+
 igraph_t * imported;
 void printNodes(igraph_t* graph){
 	igraph_vector_t gtypes, vtypes, etypes;
