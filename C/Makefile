@@ -18,7 +18,7 @@ $(EXEC): $(OBJECTS)
 	$(CXX) $(CXX_FLAGS) $(OBJECTS) $(IGRAPH_LIB) -o $(EXEC)
 
 main.o: main.cpp $(HEADERS)
-	$(CXX) $(CXX_FLAGS) -c main.cpp -o main.o
+	$(CXX) $(CXX_FLAGS) $(IGRAPH_HEADERS) -c main.cpp -o main.o
 
 workflow.o: workflow.cpp $(HEADERS)
 	$(CXX) $(CXX_FLAGS) $(IGRAPH_HEADERS) -c workflow.cpp -o workflow.o
@@ -34,9 +34,6 @@ DAGUtilities.o: DAGUtilities.cpp $(HEADERS)
 
 hardCodedTest.o: hardCodedTest.cpp $(HEADERS)
 	$(CXX) $(CXX_FLAGS) $(IGRAPH_HEADERS) -c hardCodedTest.cpp -o hardCodedTest.o
-	
-main.o: main.cpp $(HEADERS)
-	$(CXX) $(CXX_FLAGS) $(IGRAPH_HEADERS) -c main.cpp -o main.o
 	
 PermutationMaker.o: PermutationMaker.cpp $(HEADERS)
 	$(CXX) $(CXX_FLAGS) $(IGRAPH_HEADERS) -c PermutationMaker.cpp -o PermutationMaker.o
