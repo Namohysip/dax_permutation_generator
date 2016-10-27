@@ -8,7 +8,7 @@ EXEC = dax_permutation_generator
 
 default: $(EXEC)
 
-OBJECTS= mainTest.o workflow.o pugixml.o DAGUtilities.o PermutationMaker.o sha256.o hardCodedTest.o
+OBJECTS= main.o workflow.o pugixml.o DAGUtilities.o PermutationMaker.o sha256.o hardCodedTest.o
 HEADERS= workflow.hpp sha256.hpp
 IGRAPH_HEADERS= -I/usr/local/include/igraph/ -I/usr/local/igraph/
 IGRAPH_LIB= -L/usr/local/lib -ligraph 
@@ -35,8 +35,8 @@ DAGUtilities.o: DAGUtilities.cpp $(HEADERS)
 hardCodedTest.o: hardCodedTest.cpp $(HEADERS)
 	$(CXX) $(CXX_FLAGS) $(IGRAPH_HEADERS) -c hardCodedTest.cpp -o hardCodedTest.o
 	
-mainTest.o: mainTest.cpp $(HEADERS)
-	$(CXX) $(CXX_FLAGS) $(IGRAPH_HEADERS) -c mainTest.cpp -o mainTest.o
+main.o: main.cpp $(HEADERS)
+	$(CXX) $(CXX_FLAGS) $(IGRAPH_HEADERS) -c main.cpp -o main.o
 	
 PermutationMaker.o: PermutationMaker.cpp $(HEADERS)
 	$(CXX) $(CXX_FLAGS) $(IGRAPH_HEADERS) -c PermutationMaker.cpp -o PermutationMaker.o
