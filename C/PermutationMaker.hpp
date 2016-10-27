@@ -1,5 +1,4 @@
-#include <vector>
-#include <igraph.h>
+#pragma once
 
 void combine(igraph_t * , igraph_integer_t, igraph_integer_t);
 bool addWithoutDuplicates( std::vector<igraph_t *> * , igraph_t *);
