@@ -6,6 +6,7 @@
 #include <string>
 #include <string.h>
 #include <unistd.h>
+#include <fstream>
 
 
 #include "workflow.hpp"
@@ -18,12 +19,13 @@
  */
 struct MainArguments
 {
-	bool just_a_test; 
+	bool just_a_test = false; 
 	std::string dax_filename;
 	std::string output_prefix;
 	std::string method;	
 	double timeout = 0.0;
 	int max_permutations = 0;
+	bool hash = false;
 
 	bool abort = false;  // set to true while parsing argument if error
 	std::string abortReason;  // Error message to print
@@ -47,6 +49,11 @@ int parse_opt(int key, char *arg, struct argp_state *state)
 	main_args->just_a_test = true;
 	break;
     }
+	case 'h':
+	{
+		main_args->hash = true;
+		break;
+	}
     case 'd':
     {
         if (access(((std::string) arg).c_str(), R_OK) == -1)
@@ -63,8 +70,15 @@ int parse_opt(int key, char *arg, struct argp_state *state)
     }
     case 'o':
     {
-	// May want to add some safety checks here
-        main_args->output_prefix = std::string(arg);
+		if(true){
+			main_args->output_prefix = std::string(arg);
+			std::cout << std::string(arg);
+		}
+		else {
+			main_args->abort = true;
+			main_args->abortReason += "\n  invalid output file base name: '" +
+									  std::string(arg) + "' is invalid or directory does not exist.";
+		}
         break;
     }
     case 't':
@@ -90,9 +104,8 @@ int parse_opt(int key, char *arg, struct argp_state *state)
     case 'm':
     {
 	main_args->method = (std::string) arg;
-	if ((main_args->method != "limited") && 
-	    (main_args->method != "exhaustive") && 
-	    (main_args->method != "hashed") && 
+	if ( 
+	    (main_args->method != "exhaustive") &&
 	    (main_args->method != "random") && 
 	    (main_args->method != "randomLimited")) {
 	  main_args->abort = true;
@@ -122,6 +135,7 @@ bool parse_main_args(int argc, char * argv[], MainArguments & main_args)
         {"max-permutations", 'p', "COUNT", 0, "Maximum number of permutations to generate (integer, default: 0 - no maximum)", 0},
         {"method", 'm', "NAME", 0, "Workflow generation  method (string, required): limited, exhaustive, hashed, random, randomLimited", 0},
         {"test", 'T', 0, 0, "Only run a hard-coded test for iGraph", 0},
+		{"hash", 'h', 0, 0, "Use hashing if applicable. Silently does nothing if hashing is unavailable for the given method.", 0},
         {0, '\0', 0, 0, 0, 0} // The options array must be NULL-terminated
     };
 
@@ -130,6 +144,7 @@ bool parse_main_args(int argc, char * argv[], MainArguments & main_args)
     // Parse argument
     argp_parse(&argp, argc, argv, 0, 0, &main_args);
 
+    // Check we have everything we need (unless this is all the hardcoded test)
     // Check we have everything we need (unless this is all the hardcoded test)
     if (! main_args.just_a_test) {
       // We need a DAX as input
@@ -168,7 +183,7 @@ int main (int argc, char* argv[]) {
         if (!parse_main_args(argc, argv, main_args))
             return 1;
 
-        std::string options = "exhaustive limited hashed random randomLimited";
+        std::string options = "exhaustive random randomLimited";
 	igraph_i_set_attribute_table(&igraph_cattribute_table); //ALWAYS HAVE THIS. Enables attributes.
 
 	if (main_args.just_a_test) {
@@ -178,10 +193,11 @@ int main (int argc, char* argv[]) {
 
 	// Getting command-line arguments
 	std::string dax_file = main_args.dax_filename;
-	std::string output_prefix = output_prefix;
+	std::string output_prefix = main_args.output_prefix;
 	std::string method = main_args.method;
 	double timeout = main_args.timeout;
-	double max_permutations = main_args.max_permutations;
+	int max_permutations = main_args.max_permutations;
+	bool hashed = main_args.hash;
 	
 	/* Load the workflow from the DAX file*/
 	Workflow * workflow = new Workflow("some_workflow");
@@ -193,19 +209,21 @@ int main (int argc, char* argv[]) {
 	std::cout << "Generating permutations...\n";
 	std::vector<igraph_t *> * clusterings;
 	if(method == "exhaustive"){
-		clusterings = exhaustivePermStart(getImported(), false, timeout, max_permutations);
-		outputDAX(clusterings, output_prefix);
-		
-	}
-	else if (method == "limited"){
-		clusterings = exhaustivePermStart(getImported(), true, timeout, max_permutations);
-		std::cout << "Total permutations made: " << clusterings->size() << "\n";
-		outputDAX(clusterings, output_prefix);
-	}
-	else if (method == "hashed"){
-		/*Compute all transformations with hashing enabled to use up less memory */
-		std::vector<std::string> * hashes = exhaustivePermHashStart(getImported(), output_prefix, timeout, max_permutations);
-		std::cout << "Total permutations made: " << hashes->size() << "\n";
+		if(hashed){
+			/*Compute all transformations with hashing enabled to use up less memory */
+			std::vector<std::string> * hashes = exhaustivePermHashStart(getImported(), output_prefix, timeout, max_permutations);
+			std::cout << "Total permutations made: " << hashes->size() << "\n";
+		}
+		else{
+			if (timeout <= 0 && max_permutations <= 0){
+						clusterings = exhaustivePermStart(getImported(), output_prefix);
+						std::cout << "Total permutations made: " << clusterings->size() << "\n";
+			}
+			else{
+				clusterings = exhaustivePermStart(getImported(), output_prefix, true, timeout, max_permutations);
+				std::cout << "Total permutations made: " << clusterings->size() << "\n";
+			}
+		}
 	}
 	else if(method == "random"){
 		clusterings = randomizedPerm(getImported(), timeout, max_permutations, output_prefix);
