@@ -11,7 +11,11 @@ default: $(EXEC)
 OBJECTS= main.o workflow.o pugixml.o DAGUtilities.o PermutationMaker.o sha256.o hardCodedTest.o
 HEADERS= workflow.hpp sha256.hpp
 IGRAPH_HEADERS= -I/usr/local/include/igraph/ -I/usr/local/igraph/
-IGRAPH_LIB= -L/usr/local/lib -ligraph 
+IGRAPH_LIB= -L/usr/local/lib -ligraph
+
+ifeq ($(OS),Windows_NT)
+	IGRAPH_LIB += -largp
+	endif
 
 
 $(EXEC): $(OBJECTS)
