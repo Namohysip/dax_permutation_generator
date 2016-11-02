@@ -25,7 +25,7 @@ struct MainArguments
 	double timeout = 0.0;
 	int max_permutations = 0;
 
-	bool abort = false;  // set to true while parsing argument if error
+	bool abort = false;       // set to true while parsing argument if error
 	std::string abortReason;  // Error message to print
 
 };
@@ -72,7 +72,7 @@ int parse_opt(int key, char *arg, struct argp_state *state)
 	if ((sscanf(arg, "%lf",&(main_args->timeout)) != 1) ||
             (main_args->timeout < 0)) {
 	  main_args->abort = true;
-	  main_args->abortReason += "\n  invalid timeout value '" +
+	  main_args->abortReason += "\n  invalid timeout argument '" +
 					std::string(arg) + "'";
  	} 
 	break;
@@ -82,7 +82,7 @@ int parse_opt(int key, char *arg, struct argp_state *state)
 	if ((sscanf(arg, "%d",&(main_args->max_permutations)) != 1) ||
             (main_args->timeout < 0)) {
 	  main_args->abort = true;
-	  main_args->abortReason += "\n  invalid max permutations value '" +
+	  main_args->abortReason += "\n  invalid max permutations argument '" +
 					std::string(arg) + "'";
  	} 
 	break;
@@ -96,7 +96,7 @@ int parse_opt(int key, char *arg, struct argp_state *state)
 	    (main_args->method != "random") && 
 	    (main_args->method != "randomLimited")) {
 	  main_args->abort = true;
-	  main_args->abortReason += "\n  invalid method '" + std::string(arg) + "'";
+	  main_args->abortReason += "\n  invalid method argument '" + std::string(arg) + "'";
         }
 	break;
     }

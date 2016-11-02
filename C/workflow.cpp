@@ -126,7 +126,7 @@ int Workflow::load_from_xml(const std::string &xml_filename)
 	    // Check whether there is already a dependency
             int already_there = 0;
 	    for (int i=0; i < source->downwards.size(); i++) {
-              if (source->downwards.at(i)->parent == source) {
+              if (source->downwards.at(i)->child == dest) {
                 already_there = 1;
               } 
             }
