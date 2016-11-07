@@ -7,6 +7,6 @@ std::vector<igraph_t *> * exhaustivePermStart(igraph_t * graph, std::string file
 igraph_t * getImported();
 std::vector<std::string> * exhaustivePermHashStart(igraph_t * graph,  std::string fileBase, double seconds, int goal);
 std::vector<igraph_t *> * randomizedPerm(igraph_t * graph, double time, int max, std::string fileBase);
-int RandomizedPermEvenSpread(igraph_t * graph, int maxPerLevel, std::string fileBase);
+int RandomizedPermEvenSpread(igraph_t * graph, int maxPerLevel, int depthLimit, int attempt_cap, std::string fileBase);
 
 #endif
