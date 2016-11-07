@@ -25,14 +25,26 @@ struct MainArguments
 	std::string method;	
 	double timeout = 0.0;
 	int max_permutations = 0;
+	int attempt_cap = 20;
+	int min_size = 1;
 	bool hash = false;
 
-	bool abort = false;       // set to true while parsing argument if error
+	bool abort = false;  	  // set to true while parsing argument if error
 	std::string abortReason;  // Error message to print
 
 };
 
-
+enum {
+	TEST = 1000,
+	HASH,
+	INPUT,
+	OUTPUT_PREFIX,
+	TIMEOUT,
+	MAX_PERMUTATIONS,
+	METHOD,
+	MIN_SIZE,
+	ATTEMPT_CAP
+};
 /**
  * Parse command-line arguments
  */
@@ -44,17 +56,17 @@ int parse_opt(int key, char *arg, struct argp_state *state)
 
     switch (key)
     {
-    case 'T':
+    case TEST:
     {
 	main_args->just_a_test = true;
 	break;
     }
-	case 'h':
+	case HASH:
 	{
 		main_args->hash = true;
 		break;
 	}
-    case 'd':
+    case INPUT:
     {
         if (access(((std::string) arg).c_str(), R_OK) == -1)
         {
@@ -68,7 +80,7 @@ int parse_opt(int key, char *arg, struct argp_state *state)
         }
         break;
     }
-    case 'o':
+    case OUTPUT_PREFIX:
     {
 		if(true){
 			main_args->output_prefix = std::string(arg);
@@ -81,7 +93,7 @@ int parse_opt(int key, char *arg, struct argp_state *state)
 		}
         break;
     }
-    case 't':
+    case TIMEOUT:
     {
 	if ((sscanf(arg, "%lf",&(main_args->timeout)) != 1) ||
             (main_args->timeout < 0)) {
@@ -91,17 +103,17 @@ int parse_opt(int key, char *arg, struct argp_state *state)
  	} 
 	break;
     }
-    case 'p':
+    case MAX_PERMUTATIONS:
     {
 	if ((sscanf(arg, "%d",&(main_args->max_permutations)) != 1) ||
-            (main_args->timeout < 0)) {
+            (main_args->max_permutations < 0)) {
 	  main_args->abort = true;
 	  main_args->abortReason += "\n  invalid max permutations argument '" +
 					std::string(arg) + "'";
  	} 
 	break;
     }
-    case 'm':
+    case METHOD:
     {
 	main_args->method = (std::string) arg;
 	if ( 
@@ -113,6 +125,24 @@ int parse_opt(int key, char *arg, struct argp_state *state)
         }
 	break;
     }
+	case MIN_SIZE:
+	{
+		if ((sscanf(arg,"%d",&(main_args->min_size)) != 1) ||
+			(main_args->min_size < 1)){
+				main_args->abort = true;
+				main_args->abortReason += "\n invalid minimum size value '" + std::string(arg) + "'";
+			}
+		break;
+	}
+	case ATTEMPT_CAP:
+	{
+		if((sscanf(arg,"%d",&(main_args->attempt_cap)) != 1) ||
+			(main_args->attempt_cap < 1)){
+				main_args->abort = true;
+				main_args->abortReason += "\n invalid attempt cap value '" + std::string(arg) + "'";
+			}
+		break;
+	}
     } // end switch
 
     return 0;
@@ -129,14 +159,16 @@ bool parse_main_args(int argc, char * argv[], MainArguments & main_args)
 {
     struct argp_option options[] =
     {
-        {"dax", 'd', "FILENAME", 0, "The input DAX file with the original workflow (string, required)", 0},
-        {"output", 'o', "PATH_PREFIX", 0, "The filepath prefix for generating output DAX files (string, required)", 0},
-        {"timeout", 't', "SECONDS", 0, "Time out value (float, default: 0 - no timeout)", 0},
-        {"max-permutations", 'p', "COUNT", 0, "Maximum number of permutations to generate (integer, default: 0 - no maximum)", 0},
-        {"method", 'm', "NAME", 0, "Workflow generation  method (string, required): limited, exhaustive, hashed, random, randomLimited", 0},
-        {"test", 'T', 0, 0, "Only run a hard-coded test for iGraph", 0},
-		{"hash", 'h', 0, 0, "Use hashing if applicable. Silently does nothing if hashing is unavailable for the given method.", 0},
-        {0, '\0', 0, 0, 0, 0} // The options array must be NULL-terminated
+        {"dax", INPUT, "FILENAME", 0, "The input DAX file with the original workflow (string, required)", 0},
+        {"output", OUTPUT_PREFIX, "PATH_PREFIX", 0, "The filepath prefix for generating output DAX files (string, required)", 0},
+        {"timeout", TIMEOUT, "SECONDS", 0, "Time out value (float, default: 0 - no timeout)", 0},
+        {"max-permutations", MAX_PERMUTATIONS, "COUNT", 0, "Maximum number of permutations to generate (integer, default: 0 - no maximum)", 0},
+        {"method", METHOD, "NAME", 0, "Workflow generation  method (string, required): limited, exhaustive, hashed, random, randomLimited", 0},
+        {"test", TEST, 0, 0, "Only run a hard-coded test for iGraph", 0},
+		{"hash", HASH, 0, 0, "Use hashing if applicable. Silently does nothing if hashing is unavailable for the given method.", 0},
+		{"min_size", MIN_SIZE,"min_size",0,"the minimum size for workflows to be output. Must be above 0. Default is 1."},
+		{"attempt_cap",ATTEMPT_CAP,"attempt_cap",0,"the maximum number of attempts to make a legal graph when done randomly."},
+		{0, '\0', 0, 0, 0, 0} // The options array must be NULL-terminated
     };
 
     struct argp argp = {options, parse_opt, 0, "A tool to generate workflow configurations via task merging.", 0, 0, 0};
@@ -197,6 +229,8 @@ int main (int argc, char* argv[]) {
 	std::string method = main_args.method;
 	double timeout = main_args.timeout;
 	int max_permutations = main_args.max_permutations;
+	int attempt_cap = main_args.attempt_cap;
+	int min_size = main_args.min_size;
 	bool hashed = main_args.hash;
 	
 	/* Load the workflow from the DAX file*/
@@ -230,7 +264,7 @@ int main (int argc, char* argv[]) {
 		std::cout << "Total permutations made: " << clusterings->size() << "\n";
 	}
 	else if(method == "randomLimited"){
-		std::cout << "Total permutations made: " << RandomizedPermEvenSpread(getImported(), max_permutations, output_prefix) << "\n";
+		std::cout << "Total permutations made: " << RandomizedPermEvenSpread(getImported(), max_permutations, min_size, attempt_cap, output_prefix) << "\n";
 	}
 	else {
 		std::cerr << "This type of clustering option is not supported.\n";
