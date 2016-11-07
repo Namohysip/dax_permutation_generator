@@ -515,7 +515,7 @@ int RandomizedPermEvenSpread(igraph_t * graph, int maxPerLevel, int depthLimit, 
 			attempt++;
 		}
 		if(attempt < attempt_cap){
-			if(i % 1000 == 0){
+			if((i+1) % 1000 == 0){
 					std::cout << "Made these many permutations: " << i << "\n";
 			}
 		}
