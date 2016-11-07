@@ -5,11 +5,12 @@
 #include "workflow.hpp"
 #include <string>
 #include <string.h>
+#include <unistd.h>
 
 #include "DAGUtilities.hpp"
 #include "PermutationMaker.hpp"
 
-
+igraph_integer_t levelLabel(igraph_t * graph);
 void test_with_small_hardcoded_graph();
 
 
@@ -136,7 +137,7 @@ void test_with_small_hardcoded_graph() {
 	*/
 	
 	std::cout << "Testing randomized method\n";
-	std::vector<igraph_t *> * randomized = randomizedPerm(&hash, 1, 20000, "test");
+	std::vector<igraph_t *> * randomized = randomizedPerm(&hash, 1, 20000, "output/test");
 	std::cout << randomized->size() << "\n";
 	
 	std::cout << "Original graph size: " << std::to_string(max) << "\n";
@@ -145,12 +146,13 @@ void test_with_small_hardcoded_graph() {
 	for(std::vector<igraph_t *>::iterator it = randomized->begin(); it != randomized->end(); ++it){
 		total += igraph_vcount(*it);
 	}
-	std::cout << std::to_string(total / randomized->size()); 
+	std::cout << std::to_string(total / randomized->size()) << "\n"; 
 	
 	Workflow * workflow = new Workflow("some_workflow");
-	if (workflow->load_from_xml("workflows/CyberShake_1.xml")) {
+	if (workflow->load_from_xml("workflows/1000genome.xml")) {
 	  exit(1);
 	}
+	/*
 	std::cout << "Edge count: " << igraph_ecount(getImported()) << "\n";
 	std::cout << "Testing randomized method on workflow\n";
 	std::vector<igraph_t *> * workflowRand = randomizedPerm(getImported(), 100, 20000, "test");
@@ -161,9 +163,19 @@ void test_with_small_hardcoded_graph() {
 	int workTotal = 0;
 	for(std::vector<igraph_t *>::iterator it = workflowRand->begin(); it != workflowRand->end(); ++it){
 		workTotal += igraph_vcount(*it);
-	}
-	std::cout << std::to_string(workTotal / workflowRand->size());
 	
+	std::cout << std::to_string(workTotal / workflowRand->size());
+	*/
+	
+	printEdges(getImported());
+	igraph_integer_t head = levelLabel(getImported());
+	std::cout << VAS(getImported(),"id",head) << "\n";
+	std::cout << VAS(getImported(),"id",(int) head + 1) << "\n";
+	
+	std::cout << "for 'hash' graph: \n";
+	head = levelLabel(&hash);
+	std::cout << VAS(&hash,"id",head) << "\n";
+	std::cout << VAS(&hash,"id",(int) head + 1) << "\n";
 	 igraph_vs_destroy(&del);
 	 igraph_es_destroy(&edel);
 	 igraph_destroy(&notDuplicate);
