@@ -6,6 +6,7 @@
 #include <string.h>
 #include <fstream>
 #include <ctime>
+#include <queue>
 
 #include "sha256.hpp"
 #include "DAGUtilities.hpp"
@@ -503,9 +504,8 @@ std::vector<igraph_t *> * randomizedPerm(igraph_t * graph, double time, int max,
 	return graphs;
 }
 
-int RandomizedPermEvenSpread(igraph_t * graph, int maxPerLevel, std::string fileBase){
+int RandomizedPermEvenSpread(igraph_t * graph, int maxPerLevel, int depthLimit, int attempt_cap, std::string fileBase){
 	srand((double) clock());
-	int attempt_cap = 20;
 	std::vector<igraph_t *> * open = new std::vector<igraph_t *>;
 	dagToDAX(graph, fileBase, 0);
 	int i;
@@ -514,62 +514,119 @@ int RandomizedPermEvenSpread(igraph_t * graph, int maxPerLevel, std::string file
 		while(!makeRandomCombination(open,graph, i+1, fileBase) && attempt < attempt_cap){
 			attempt++;
 		}
+		if(attempt < attempt_cap){
+			if((i+1) % 1000 == 0){
+					std::cout << "Made these many permutations: " << i << "\n";
+			}
+		}
 	}
 	//For each if the original batch, make a new permutation by combining two of its nodes.
 	while(open->size() > 0){
 		igraph_t * iteration = open->front(); //treats this as a breadth-first search.
 		int attempt = 0;
-		while(!makeRandomCombination(open, iteration, i+1, fileBase) && attempt < attempt_cap){
-			attempt++;
+		if(igraph_vcount(iteration) > depthLimit){
+			while(!makeRandomCombination(open, iteration, i+1, fileBase) && attempt < attempt_cap){
+				attempt++;
+			}
+			if(attempt < attempt_cap){
+				i++;
+				if(i % 1000 == 0){
+						std::cout << "Made these many permutations: " << i << "\n";
+				}
+			}
 		}
 		//Only has to check for duplicates at the same level,
 		//since all other permutations would have a different task count.
 		open->erase(open->begin());
-		igraph_destroy(iteration);
-		
+		igraph_destroy(iteration);	
 		delete(iteration);
-		i++;
-		if(i % 1000 == 0){
-				std::cout << "Made these many permutations: " << i << "\n";
-		}
 	}
 	return i;
 }
 
-igraph_integer_t findHead(igraph_t * graph){
+igraph_integer_t makeHead(igraph_t * graph){
 	igraph_integer_t node = 0;
 	igraph_integer_t size = 0;
+	igraph_add_vertices(graph,1,0);
+	igraph_integer_t head = igraph_vcount(graph) - 1;
+	SETVAS(graph,"id",head,"TEMP_HEAD");
+	SETVAN(graph,"runtime",head,0);
 	int count = 0;
-	igraph_integer_t lastHead = 0;
 	for(int i = 0; i < igraph_vcount(graph); i++){
 		igraph_vs_t in;
 		node = i;
 		igraph_vs_adj(&in, node, IGRAPH_IN); //get all predecessors of the node
 		igraph_vs_size(graph, &in, &size);
-		if((int) size == 0){
+		if((int) size == 0 && (int) node != (int) head){
 			count++;
-			lastHead = node;
+			igraph_add_edge(graph, head, node);
 		}
 	}
 	std::cout << "Number of heads: " << count << "\n";
-	return lastHead;
+	return head;
 }
 
-igraph_integer_t findSink(igraph_t * graph){
+igraph_integer_t makeSink(igraph_t * graph){
 	igraph_integer_t node = 0;
 	igraph_integer_t size = 0;
+	igraph_add_vertices(graph,1,0);
+	igraph_integer_t sink = igraph_vcount(graph) - 1;
+	SETVAS(graph,"id",sink,"TEMP_SINK");
+	SETVAN(graph,"runtime",sink,0);
 	int count = 0;
-	igraph_integer_t lastSink = 0;
 	for(int i = 0; i < igraph_vcount(graph); i++){
 		igraph_vs_t out;
 		node = i;
 		igraph_vs_adj(&out, node, IGRAPH_OUT); //get all successors of the node
 		igraph_vs_size(graph, &out, &size);
-		if((int) size == 0){
+		if((int) size == 0 && (int) node != (int) sink){
 			count++;
-			lastSink = node;
+			igraph_add_edge(graph,node,sink);
 		}
 	}
 	std::cout << "Number of sinks: " << count << "\n";
-	return lastSink;
+	return sink;
+}
+
+/*Returns the vertex id of TEMP_HEAD. The id of TEMP_SINK is the vertex id of TEMP_HEAD + 1.
+*Labels the levels of every node. NOTE: adds TWO NEW NODES to the input graph, TEMP_HEAD and TEMP_SINK.
+*These nodes should be deleted before outputing the DAX file of the graph, but they are not deleted
+*here in case they are needed later after the labeling is complete.
+*/
+igraph_integer_t levelLabel(igraph_t * graph){
+	igraph_integer_t head = makeHead(graph); //create head node.
+	igraph_integer_t sink = makeSink(graph);
+	for(int i = 0; i < igraph_vcount(graph); i++){
+		SETVAN(graph,"level",i,0);
+		SETVAB(graph,"added",i,false);
+	}
+	std::queue<igraph_integer_t> que;
+	que.push(head); //start at the head
+	while(!que.empty()){
+		igraph_integer_t nextNode = que.front();
+		que.pop();
+		SETVAB(graph,"added",nextNode,false);
+		int level = VAN(graph,"level",nextNode) + 1;
+		igraph_vs_t children;
+		igraph_vit_t childIter;
+		igraph_vs_adj(&children,nextNode,IGRAPH_OUT);
+		igraph_vit_create(graph,children,&childIter);
+		while(! IGRAPH_VIT_END(childIter)){
+			igraph_integer_t child = IGRAPH_VIT_GET(childIter);
+			if(VAN(graph,"level",child) < level){ 
+			//if the child's level is less than it should be.
+			//Otherwise, its level is higher because of a deeper parent than this one
+				SETVAN(graph,"level",child,level);
+				if(! VAB(graph,"added",child)){ //If the child isn't already on the queue
+					que.push(child);
+					SETVAB(graph,"added",child,true);
+				}
+			}
+			IGRAPH_VIT_NEXT(childIter);
+		}
+	}
+	
+	std::cout << "Head level: " << VAN(graph,"level",head) << "\n";
+	std::cout << "Sink level: " << VAN(graph,"level",sink) << "\n";
+	return head;
 }

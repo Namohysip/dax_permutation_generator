@@ -1,6 +1,6 @@
 #include <iostream>
 #include <igraph.h>
-
+#include <string.h>
 #include "DAGUtilities.hpp"
 
 igraph_t * imported;
@@ -53,7 +53,8 @@ void printEdges(igraph_t* graph){
 	igraph_eit_create(graph, edges, &edgeIter);
 	
 	
-	
+	int headcount = 0;
+	int sinkcount = 0;
 	
 	while (! IGRAPH_EIT_END(edgeIter)){
 		igraph_integer_t eid = IGRAPH_EIT_GET(edgeIter);
@@ -62,10 +63,18 @@ void printEdges(igraph_t* graph){
 		igraph_edge(graph, eid, &from, &to);
 		
 		std::cout << VAS(graph, "id", from) << "," << VAS(graph, "id", to) << "\n";
-		
+		if(strcmp(VAS(graph,"id",from), "TEMP_HEAD") == 0){
+			headcount++;
+		}
+		if(strcmp(VAS(graph,"id",to), "TEMP_SINK") == 0){
+			sinkcount++;
+		}
 		IGRAPH_EIT_NEXT(edgeIter);
 	}
-	
+	if(headcount > 0 && sinkcount > 0){
+	std::cout << "Number of heads: " << headcount << "\n";
+	std::cout << "Number of sinks: " << sinkcount << "\n";
+	}
 	igraph_vector_destroy(&gtypes);
 	igraph_vector_destroy(&vtypes);
 	igraph_vector_destroy(&etypes);
