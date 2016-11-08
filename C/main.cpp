@@ -52,6 +52,7 @@ int parse_opt(int key, char *arg, struct argp_state *state)
 	case 'h':
 	{
 		main_args->hash = true;
+		std::cout << "HASH!\n";
 		break;
 	}
     case 'd':
@@ -135,7 +136,7 @@ bool parse_main_args(int argc, char * argv[], MainArguments & main_args)
         {"max-permutations", 'p', "COUNT", 0, "Maximum number of permutations to generate (integer, default: 0 - no maximum)", 0},
         {"method", 'm', "NAME", 0, "Workflow generation  method (string, required): limited, exhaustive, hashed, random, randomLimited", 0},
         {"test", 'T', 0, 0, "Only run a hard-coded test for iGraph", 0},
-		{"hash", 'h', 0, 0, "Use hashing if applicable. Silently does nothing if hashing is unavailable for the given method.", 0},
+	{"hash", 'h', 0, 0, "Use hashing if applicable. Silently does nothing if hashing is unavailable for the given method.", 0},
         {0, '\0', 0, 0, 0, 0} // The options array must be NULL-terminated
     };
 
