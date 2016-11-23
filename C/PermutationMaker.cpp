@@ -13,6 +13,7 @@
 #include "PermutationMaker.hpp"
 
 int permCount = 0;
+struct GlobalOptions config;
 
 void combine(igraph_t * G, igraph_integer_t node1, igraph_integer_t node2){
 	double newRuntime = VAN(G, "runtime", node1) + VAN(G, "runtime", node2);
@@ -38,7 +39,7 @@ void combine(igraph_t * G, igraph_integer_t node1, igraph_integer_t node2){
 		if (! ( (int) node1 == (int) child)){ //ignore self-loops
 		igraph_integer_t exists;
 		igraph_get_eid(G, &exists, node1, child, (igraph_bool_t) true, (igraph_bool_t) false);
-			if (exists == -1) { //make sure the edge doesn't already exist
+			if ((int) exists < 0) { //make sure the edge doesn't already exist
 				igraph_add_edge(G, node1, child); 
 			}
 		}
@@ -57,7 +58,7 @@ void combine(igraph_t * G, igraph_integer_t node1, igraph_integer_t node2){
 		if (! ( (int) node1 == (int) parent)){ //ignore self-loops
 		igraph_integer_t exists;
 		igraph_get_eid(G, &exists, parent, node1, (igraph_bool_t) true, (igraph_bool_t) false);
-			if (exists == -1) { //make sure the edge doesn't already exist.
+			if ((int) exists < 0) { //make sure the edge doesn't already exist.
 				igraph_add_edge(G, parent, node1); 
 			}
 		}
@@ -152,8 +153,9 @@ bool addWithoutDuplicates( std::vector<igraph_t *> * graphs, igraph_t * toAdd) {
 
 
 /*Converts the given graph into a DAX .xml format and then outputs the result. */
-void dagToDAX(igraph_t * graph, std::string filebase, int permCount){
-	std::string name = filebase + "_p" + std::to_string(permCount) + ".dax";
+void dagToDAX(igraph_t * graph){
+	std::string name = config.fileBase + "_p" + std::to_string(permCount) + ".dax";
+	permCount++;
 	std::ofstream permFile(name);
 	if(permFile.is_open()){
 		//preamble to all files
@@ -200,57 +202,22 @@ void dagToDAX(igraph_t * graph, std::string filebase, int permCount){
 	}
 	else std::cerr << "Error writing file";
 }
-/*Exhaustively permutes all possible clusterings of the igraph. Has no time limit; it will 
-go until completion. */
-void exhaustivePerm(std::vector<igraph_t *> * graphs, igraph_t * graph, std::string fileBase, int permCount){
-	if(igraph_vcount(graph)< 2){
-		return; //base case -- only one node left
-	}
-	if(graphs->size() % 1000 == 0){
-		std::cout << "Made these many permutations: " << graphs->size() << "\n";
-	}
-	int nodes = igraph_vcount(graph);
-	for(int i = 0; i < nodes - 1; i++){
-		for(int j = i+1; j < nodes; j++){
-			igraph_t * newGraph = new igraph_t;
-			igraph_copy(newGraph, graph);
-			igraph_integer_t gi = i;
-			igraph_integer_t gj = j;
-			combine(newGraph, gi, gj);
-			igraph_bool_t legal;
-			igraph_is_dag(newGraph, &legal);
-			if((bool) legal){
-				if(addWithoutDuplicates(graphs, newGraph)){
-					dagToDAX(newGraph, fileBase, permCount);
-					permCount++;
-					exhaustivePerm(graphs, newGraph, fileBase, permCount);
-				}
-				else{
-					igraph_destroy(newGraph);
-					delete(newGraph);
-				}
-			}
-			else {
-				igraph_destroy(newGraph);
-				delete(newGraph);
-			}
-		}
-	}
-}
 
-/*Same as exhaustive perm, but limited by both a time limit or cap on how many 
+/*Exhaustively permutes all possible clusterings of the igraph. 
+ Limited by both a time limit or cap on how many 
  graphs to permute. Once either limit is reached, no more permutations will be made,
- and the recursive function will go back to the top level and terminate. */
-bool timedExhaustivePerm(std::vector<igraph_t *> * graphs, igraph_t * graph, double time, clock_t start, int goal, std::string filebase, int permCount){
+ and the recursive function will go back to the top level and terminate. 
+ if the time limit or max number of graphs is <= 0, it is assumed to not have a limit*/
+bool exhaustivePerm(std::vector<igraph_t *> * graphs, igraph_t * graph, clock_t start){
 	if(igraph_vcount(graph)< 2){
 		return true; //base case -- only one node left
 	}
-	if(time > 0){
-		if (time < double(clock() - start) / CLOCKS_PER_SEC) //time-up case -- return and wrap things up	return false;
+	if(config.timeLimit > 0){
+		if (config.timeLimit < double(clock() - start) / CLOCKS_PER_SEC) //time-up case -- return and wrap things up	return false;
 		return false;
 	}
-	if (goal > 0){
-		 if(graphs->size() >= goal)
+	if (config.maxGraphs > 0){
+		 if(graphs->size() >= config.maxGraphs)
 			 return false;
 	}
 	
@@ -268,11 +235,13 @@ bool timedExhaustivePerm(std::vector<igraph_t *> * graphs, igraph_t * graph, dou
 			igraph_bool_t legal;
 			igraph_is_dag(newGraph, &legal);
 			if((bool) legal){
+				if(config.mergeChains){ //auto-combine chains
+					while(mergeAChain(newGraph));
+				}
 				if(addWithoutDuplicates(graphs, newGraph)){
-					dagToDAX(newGraph, filebase, permCount);
-					permCount++;
-					if(! timedExhaustivePerm(graphs, newGraph, time, start, goal, filebase, permCount)){
-						return false;
+					dagToDAX(newGraph);
+					if(! exhaustivePerm(graphs, newGraph, start)){
+						return false; //ran out of time / hit graph limit
 					}
 				}
 				else{
@@ -289,16 +258,24 @@ bool timedExhaustivePerm(std::vector<igraph_t *> * graphs, igraph_t * graph, dou
 
 
 /*This is what should be called when starting any exhaustive permutation that does NOT use hashing. */
-std::vector<igraph_t *> * exhaustivePermStart(igraph_t * graph, std::string filebase, bool timed /*= false*/, double seconds /*= 0*/, int goal /*= 0*/){
+std::vector<igraph_t *> * exhaustivePermStart(igraph_t * graph){
 	std::vector<igraph_t *> * graphs = new std::vector<igraph_t *>;
 	graphs->push_back(graph);
-	dagToDAX(graph, filebase, 0);
-	if (! timed) {
-		exhaustivePerm(graphs, graph, filebase, 1);
+	dagToDAX(graph);
+	clock_t start = clock();
+	if(config.mergeChains){
+		igraph_t * newGraph = new igraph_t;
+		igraph_copy(newGraph, graph);
+		while(mergeAChain(newGraph));
+		if(addWithoutDuplicates(graphs,newGraph)){
+			exhaustivePerm(graphs,newGraph,start);
+		}
+		else {
+			exhaustivePerm(graphs,graph,start);
+		}
 	}
 	else {
-		clock_t start = clock();
-		timedExhaustivePerm(graphs, graph, seconds, start, goal, filebase, 1);
+		exhaustivePerm(graphs, graph, start);
 	}
 	return graphs;
 }
@@ -340,14 +317,15 @@ std::string dagToDAXStr(igraph_t * graph){
 }
 
 
-/*Outputs all of the graphs in the given list of igraphs, using the file base for the names.*/
-void outputDAX(std::vector<igraph_t *> * graphs, std::string fileBase){
+/*Outputs all of the graphs in the given list of igraphs, using the file base for the names.
+ Currently not used now that all functions output graphs as they are created and validated. */
+void outputDAX(std::vector<igraph_t *> * graphs){
 	int i = 0;
 	std::cout << "Writing out ";
 	std::cout << graphs->size();
 	std::cout << " files.\n";
 	for(std::vector<igraph_t*>::iterator it = graphs->begin(); it != graphs->end(); ++it){
-		dagToDAX(*it, fileBase, i);
+		dagToDAX(*it);
 		i++;
 		if(i % 1000 == 0){
 			std::cout << "Wrote out " << i << " files.\n";
@@ -356,11 +334,11 @@ void outputDAX(std::vector<igraph_t *> * graphs, std::string fileBase){
 }
 
 /*Same as outputDAX, but directly using the string given.*/
-void outputDAXStr(std::string graph, std::string filebase){
-	std::string name = filebase + "_p" + std::to_string(permCount) + ".dax";
+void outputDAXStr(std::string graph){
+	std::string name = config.fileBase + "_p" + std::to_string(permCount) + ".dax";
 	std::ofstream permFile(name);
-	permCount++;
 	if(permFile.is_open()) {
+		permCount++;
 		permFile << graph;
 	}
 	else {
@@ -373,7 +351,7 @@ void outputDAXStr(std::string graph, std::string filebase){
  First it computes the DAX format of the graph and hashes it, and then checks if there are
  duplicates in the given list. If there aren't, it outputs that file and returns true. Otherwise,
  no file is output, nothing is added to the list, and it returns false. */
-bool addHashAndOutput(std::vector<std::string> *graphs, igraph_t * newGraph, std::string fileBase){
+bool addHashAndOutput(std::vector<std::string> *graphs, igraph_t * newGraph){
 	std::string daxString = dagToDAXStr(newGraph);
 	std::string hash = sha256(daxString);
 	for(std::vector<std::string>::iterator it = graphs->begin(); it != graphs->end(); ++it){
@@ -382,21 +360,21 @@ bool addHashAndOutput(std::vector<std::string> *graphs, igraph_t * newGraph, std
 		}
 	}
 	graphs->push_back(hash);
-	outputDAXStr(daxString, fileBase);
+	outputDAXStr(daxString);
 	return true;
 }
 
 /*The hash equivalent of timedExhaustivePerm. */
-bool timedExhaustivePermHash(std::vector<std::string> * graphs, igraph_t * graph, double time, clock_t start, int goal, std::string fileBase){
+bool exhaustivePermHash(std::vector<std::string> * graphs, igraph_t * graph, clock_t start){
 	if(igraph_vcount(graph)< 2){
 		return true; //base case -- only one node left
 	}
-	if(time > 0){
-		if (time < double(clock() - start) / CLOCKS_PER_SEC) //time-up case -- return and wrap things up	return false;
+	if(config.timeLimit > 0){
+		if (config.timeLimit < double(clock() - start) / CLOCKS_PER_SEC) //time-up case -- return and wrap things up	return false;
 		return false;
 	}
-	if (goal > 0){
-		 if(graphs->size() >= goal)
+	if (config.maxGraphs > 0){
+		 if(graphs->size() >= config.maxGraphs)
 			 return false;
 	}
 	
@@ -414,8 +392,11 @@ bool timedExhaustivePermHash(std::vector<std::string> * graphs, igraph_t * graph
 			igraph_bool_t legal;
 			igraph_is_dag(newGraph, &legal);
 			if((bool) legal){
-				if(addHashAndOutput(graphs, newGraph, fileBase)){
-					if(! timedExhaustivePermHash(graphs, newGraph, time, start, goal, fileBase)){
+				if(config.mergeChains){ //auto-combine chains
+					while(mergeAChain(newGraph));
+				}
+				if(addHashAndOutput(graphs, newGraph)){
+					if(! exhaustivePermHash(graphs, newGraph, start)){
 						return false; //ran out of time
 					}
 				}
@@ -427,20 +408,32 @@ bool timedExhaustivePermHash(std::vector<std::string> * graphs, igraph_t * graph
 	return true;
 }
 
-/*The hash equivalent of TimedExhaustivePermStart. Also takes in the fileBase name for output, 
+/*The hash equivalent of TimedExhaustivePermStart. checks config.fileBase name for output, 
 since the output is done for each permutation after it is created, rather than after the entire
 function terminates. */
-std::vector<std::string> * exhaustivePermHashStart(igraph_t * graph, std::string fileBase, double seconds = 0, int goal = 0){
-	std::cout << "Hashing!\n";
+std::vector<std::string> * exhaustivePermHashStart(igraph_t * graph){
 	std::vector<std::string> * graphs = new std::vector<std::string>;
-	addHashAndOutput(graphs, graph, fileBase);
-		clock_t start = clock();
-		timedExhaustivePermHash(graphs, graph, seconds, start, goal, fileBase);
+	addHashAndOutput(graphs, graph);
+	clock_t start = clock();
+	if(config.mergeChains){
+		igraph_t * newGraph = new igraph_t;
+		igraph_copy(newGraph, graph);
+		while(mergeAChain(newGraph));
+		if(addHashAndOutput(graphs,newGraph)){
+			exhaustivePermHash(graphs,newGraph,start);
+		}
+		else {
+			exhaustivePermHash(graphs,graph,start);
+		}
+	}
+	else {
+		exhaustivePermHash(graphs, graph, start);
+	}
 	return graphs;
 }
 
 
-bool makeRandomCombination(std::vector<igraph_t *> * graphs, igraph_t * source, int iteration, std::string fileBase){
+bool makeRandomCombination(std::vector<igraph_t *> * graphs, igraph_t * source){
 	int node1 = rand() % igraph_vcount(source);
 	int node2 = rand() % igraph_vcount(source);
 	if(node1 != node2){
@@ -464,7 +457,7 @@ bool makeRandomCombination(std::vector<igraph_t *> * graphs, igraph_t * source, 
 				return false;
 			}
 			else{
-				dagToDAX(newGraph, fileBase, iteration);
+				dagToDAX(newGraph);
 			}
 		}
 		else {
@@ -481,37 +474,37 @@ bool makeRandomCombination(std::vector<igraph_t *> * graphs, igraph_t * source, 
 /*Naive implementation of a randomized permutation.
 Picks a random graph, picks two random nodes from that graph,
 and combines them. If it works, it's added to the list.*/
-std::vector<igraph_t *> * randomizedPerm(igraph_t * graph, double time, int max, std::string fileBase){
+std::vector<igraph_t *> * randomizedPerm(igraph_t * graph){
 	srand((double) clock());
 	int failures = 0; //failure ciunt for the same nodes being picked, or an illegal graph is made
 	int attempts = 0; //total attempt count
 	clock_t start = clock(); //timer
 	std::vector<igraph_t *> * graphs = new std::vector<igraph_t*>;
 	graphs->push_back(graph);
-	dagToDAX(graph, fileBase, 0);
-	while(graphs->size() < max && time > double(clock() - start) / CLOCKS_PER_SEC){ 
+	dagToDAX(graph);
+	while(graphs->size() < config.maxGraphs && config.timeLimit > double(clock() - start) / CLOCKS_PER_SEC){ 
 	//when time runs out or the goal permutation count is met, whichever comes first.
 		attempts++;
 		igraph_t * sourceGraph = graphs->at(rand() % graphs->size()); //get a random graph already permuted
-		if(makeRandomCombination(graphs, sourceGraph, graphs->size() - 1, fileBase)){
+		if(makeRandomCombination(graphs, sourceGraph)){
 			if(graphs->size() % 1000 == 0){
 				std::cout << "Made these many permutations: " << graphs->size() << "\n";
 			}
 		}
 	}
-	std::cout << "Made these many illegal graphs: " << failures << "\n";
 	std::cout << "Attempted making a graph this many times: " << attempts << "\n";
+	std::cout << "Made these many illegal graphs: " << failures << "\n";
 	return graphs;
 }
 
-int RandomizedPermEvenSpread(igraph_t * graph, int maxPerLevel, int depthLimit, int attempt_cap, std::string fileBase){
+int RandomizedPermEvenSpread(igraph_t * graph, int maxPerLevel, int depthLimit, int attempt_cap){
 	srand((double) clock());
 	std::vector<igraph_t *> * open = new std::vector<igraph_t *>;
-	dagToDAX(graph, fileBase, 0);
+	dagToDAX(graph);
 	int i;
 	for(i = 0; i < maxPerLevel; i++){ //create the original batch of permutations from the original graph.
 		int attempt = 0;
-		while(!makeRandomCombination(open,graph, i+1, fileBase) && attempt < attempt_cap){
+		while(!makeRandomCombination(open,graph) && attempt < attempt_cap){
 			attempt++;
 		}
 		if(attempt < attempt_cap){
@@ -525,7 +518,7 @@ int RandomizedPermEvenSpread(igraph_t * graph, int maxPerLevel, int depthLimit, 
 		igraph_t * iteration = open->front(); //treats this as a breadth-first search.
 		int attempt = 0;
 		if(igraph_vcount(iteration) > depthLimit){
-			while(!makeRandomCombination(open, iteration, i+1, fileBase) && attempt < attempt_cap){
+			while(!makeRandomCombination(open, iteration) && attempt < attempt_cap){
 				attempt++;
 			}
 			if(attempt < attempt_cap){
@@ -629,4 +622,37 @@ igraph_integer_t levelLabel(igraph_t * graph){
 	std::cout << "Head level: " << VAN(graph,"level",head) << "\n";
 	std::cout << "Sink level: " << VAN(graph,"level",sink) << "\n";
 	return head;
+}
+
+struct GlobalOptions * getConfig(){
+	return &config;
+}
+
+bool mergeAChain(igraph_t * graph){
+	for (int i = 0; i < igraph_vcount(graph); i++) {
+		igraph_integer_t parent = i;
+		igraph_integer_t size;
+		igraph_vs_t children;
+		igraph_vs_adj(&children,parent,IGRAPH_OUT);
+		igraph_vs_size(graph, &children, &size);
+		if((int) size == 1){//there is only one child to this vertex
+			igraph_vit_t childIter;
+			igraph_vit_create(graph,children,&childIter);
+			igraph_integer_t onlyChild = IGRAPH_VIT_GET(childIter);
+			igraph_vs_t parents;
+			igraph_vs_adj(&parents,onlyChild,IGRAPH_IN);
+			igraph_vs_size(graph,&parents,&size);
+			if((int) size == 1) {
+				combine(graph,parent,onlyChild);
+				igraph_vs_destroy(&children);
+				igraph_vs_destroy(&parents);
+				igraph_vit_destroy(&childIter);
+				return true;
+			}
+			igraph_vs_destroy(&parents);
+			igraph_vit_destroy(&childIter);
+		}
+		igraph_vs_destroy(&children);
+	}
+	return false;
 }
