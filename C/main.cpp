@@ -28,6 +28,7 @@ struct MainArguments
 	int attempt_cap = 20;
 	int min_size = 1;
 	bool hash = false;
+	bool chaining = false;
 
 	bool abort = false;  	  // set to true while parsing argument if error
 	std::string abortReason;  // Error message to print
@@ -43,7 +44,9 @@ enum {
 	MAX_PERMUTATIONS,
 	METHOD,
 	MIN_SIZE,
-	ATTEMPT_CAP
+	ATTEMPT_CAP,
+	CHAINMERGE,
+	
 };
 /**
  * Parse command-line arguments
@@ -64,7 +67,11 @@ int parse_opt(int key, char *arg, struct argp_state *state)
 	case HASH:
 	{
 		main_args->hash = true;
-		std::cout << "HASH!\n";
+		break;
+	}
+	case CHAINMERGE:
+	{
+		main_args->chaining = true;
 		break;
 	}
     case INPUT:
@@ -166,10 +173,11 @@ bool parse_main_args(int argc, char * argv[], MainArguments & main_args)
         {"max-permutations", MAX_PERMUTATIONS, "COUNT", 0, "Maximum number of permutations to generate (integer, default: 0 - no maximum)", 0},
         {"method", METHOD, "NAME", 0, "Workflow generation  method (string, required): limited, exhaustive, hashed, random, randomLimited", 0},
         {"test", TEST, 0, 0, "Only run a hard-coded test for iGraph", 0},
-	{"hash", HASH, 0, 0, "Use hashing if applicable. Silently does nothing if hashing is unavailable for the given method.", 0},
-	{"min_size", MIN_SIZE,"min_size",0,"the minimum size for workflows to be output. Must be above 0. Default is 1."},
-	{"attempt_cap",ATTEMPT_CAP,"attempt_cap",0,"the maximum number of attempts to make a legal graph when done randomly."},
-	{0, '\0', 0, 0, 0, 0} // The options array must be NULL-terminated
+		{"hash", HASH, 0, 0, "Use hashing if applicable. Silently does nothing if hashing is unavailable for the given method.", 0},
+		{"min-size", MIN_SIZE,"min_size",0,"the minimum size for workflows to be output. Must be above 0. Default is 1."},
+		{"attempt-cap",ATTEMPT_CAP,"attempt_cap",0,"the maximum number of attempts to make a legal graph when done randomly."},
+		{"chain-merge", CHAINMERGE,0,0,"use this if you want to always merge single-parent-single-child vertices"},
+		{0, '\0', 0, 0, 0, 0} // The options array must be NULL-terminated
     };
 
     struct argp argp = {options, parse_opt, 0, "A tool to generate workflow configurations via task merging.", 0, 0, 0};
@@ -241,31 +249,36 @@ int main (int argc, char* argv[]) {
 	}
 	//printEdges(getImported());
 	//printNodes(getImported());
+	
+	/*Set configurations for permutation making*/
+	struct GlobalOptions * settings = getConfig();
+	
+	settings->fileBase = main_args.output_prefix;
+	settings->maxGraphs = main_args.max_permutations;
+	settings->timeLimit = main_args.timeout;
+	settings->mergeChains = main_args.chaining;
+	
 	std::cout << "Generating permutations...\n";
 	std::vector<igraph_t *> * clusterings;
 	if(method == "exhaustive"){
 		if(hashed){
 			/*Compute all transformations with hashing enabled to use up less memory */
-			std::vector<std::string> * hashes = exhaustivePermHashStart(getImported(), output_prefix, timeout, max_permutations);
+			std::vector<std::string> * hashes = exhaustivePermHashStart(getImported());
 			std::cout << "Total permutations made: " << hashes->size() << "\n";
 		}
-		else{
-			if (timeout <= 0 && max_permutations <= 0){
-						clusterings = exhaustivePermStart(getImported(), output_prefix);
-						std::cout << "Total permutations made: " << clusterings->size() << "\n";
-			}
-			else{
-				clusterings = exhaustivePermStart(getImported(), output_prefix, true, timeout, max_permutations);
-				std::cout << "Total permutations made: " << clusterings->size() << "\n";
-			}
+		else
+		{
+			
+			clusterings = exhaustivePermStart(getImported());
+			std::cout << "Total permutations made: " << clusterings->size() << "\n";
 		}
 	}
 	else if(method == "random"){
-		clusterings = randomizedPerm(getImported(), timeout, max_permutations, output_prefix);
+		clusterings = randomizedPerm(getImported());
 		std::cout << "Total permutations made: " << clusterings->size() << "\n";
 	}
 	else if(method == "randomLimited"){
-		std::cout << "Total permutations made: " << RandomizedPermEvenSpread(getImported(), max_permutations, min_size, attempt_cap, output_prefix) << "\n";
+		std::cout << "Total permutations made: " << RandomizedPermEvenSpread(getImported(), max_permutations, min_size, attempt_cap) << "\n";
 	}
 	else {
 		std::cerr << "This type of clustering option is not supported.\n";
