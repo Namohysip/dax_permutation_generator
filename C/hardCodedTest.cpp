@@ -135,9 +135,12 @@ void test_with_small_hardcoded_graph() {
 	notHashed->clear();
 	delete(notHashed); 
 	*/
-	
+	struct GlobalOptions * settings = getConfig();
+	settings->maxGraphs = 20000;
+	settings->timeLimit = 1;
+	settings->fileBase = "outout/test";
 	std::cout << "Testing randomized method\n";
-	std::vector<igraph_t *> * randomized = randomizedPerm(&hash, 1, 20000, "output/test");
+	std::vector<igraph_t *> * randomized = randomizedPerm(&hash);
 	std::cout << randomized->size() << "\n";
 	
 	std::cout << "Original graph size: " << std::to_string(max) << "\n";
