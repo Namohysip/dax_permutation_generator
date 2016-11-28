@@ -23,11 +23,11 @@ void combine(igraph_t * G, igraph_integer_t node1, igraph_integer_t node2){
 	igraph_vs_t in2;
 	igraph_vit_t outIter2;
 	igraph_vit_t inIter2;
-	
 	igraph_vs_adj(&out2, node2, IGRAPH_OUT); //get all successors of node2
 	igraph_vs_adj(&in2, node2, IGRAPH_IN); //get all predecessors of node2
 	igraph_vit_create(G, out2, &outIter2);
 	igraph_vit_create(G, in2, &inIter2);
+	
 	while (! IGRAPH_VIT_END(outIter2)){
 		igraph_integer_t child = IGRAPH_VIT_GET(outIter2);
 		/*Delete the edge (node2, child) and then add edge (node1, child) */
@@ -46,6 +46,7 @@ void combine(igraph_t * G, igraph_integer_t node1, igraph_integer_t node2){
 		IGRAPH_VIT_NEXT(outIter2); //go to next out-vertex
 		igraph_es_destroy(&edel);
 	}
+	
 	while (! IGRAPH_VIT_END(inIter2)){
 		igraph_integer_t parent = IGRAPH_VIT_GET(inIter2);
 		/*Delete the edge (parent, node2) and make it (parent, node1) */
@@ -65,11 +66,12 @@ void combine(igraph_t * G, igraph_integer_t node1, igraph_integer_t node2){
 		IGRAPH_VIT_NEXT(inIter2); //go to next in-vertex
 		igraph_es_destroy(&edel);
 	}
+	
 	igraph_vs_t del;
 	igraph_vs_1(&del, node2);
+	std::cout << "Node2 id: " << VAS(G,"id",node2) << "\n";
 	igraph_delete_vertices(G, del);
 	SETVAN(G, "runtime", node1, newRuntime);
-	
 	igraph_vs_destroy(&del);
 	igraph_vit_destroy(&outIter2);
 	igraph_vit_destroy(&inIter2);
@@ -591,14 +593,14 @@ igraph_integer_t levelLabel(igraph_t * graph){
 	igraph_integer_t sink = makeSink(graph);
 	for(int i = 0; i < igraph_vcount(graph); i++){
 		SETVAN(graph,"level",i,0);
-		SETVAB(graph,"added",i,false);
+	//	SETVAB(graph,"added",i,false);
 	}
 	std::queue<igraph_integer_t> que;
 	que.push(head); //start at the head
 	while(!que.empty()){
 		igraph_integer_t nextNode = que.front();
 		que.pop();
-		SETVAB(graph,"added",nextNode,false);
+		//SETVAB(graph,"added",nextNode,false);
 		int level = VAN(graph,"level",nextNode) + 1;
 		igraph_vs_t children;
 		igraph_vit_t childIter;
@@ -610,10 +612,10 @@ igraph_integer_t levelLabel(igraph_t * graph){
 			//if the child's level is less than it should be.
 			//Otherwise, its level is higher because of a deeper parent than this one
 				SETVAN(graph,"level",child,level);
-				if(! VAB(graph,"added",child)){ //If the child isn't already on the queue
+				//if(! VAB(graph,"added",child)){ //If the child isn't already on the queue
 					que.push(child);
-					SETVAB(graph,"added",child,true);
-				}
+				//	SETVAB(graph,"added",child,true);
+				//}
 			}
 			IGRAPH_VIT_NEXT(childIter);
 		}
@@ -655,4 +657,88 @@ bool mergeAChain(igraph_t * graph){
 		igraph_vs_destroy(&children);
 	}
 	return false;
+}
+
+igraph_t * horizontalClustering(igraph_t * graph, int perLevel, int method){
+	//Make new graph and label their levels
+	igraph_t * newGraph = new igraph_t;
+	igraph_copy(newGraph, graph);
+	igraph_integer_t head = levelLabel(newGraph);
+	igraph_integer_t sink = (int) head + 1;
+	int depth = VAN(newGraph,"level",sink);
+	
+	/*Delete the head and sink nodes, as they are no longer needed*/
+	igraph_vs_t delSink;
+	igraph_vs_1(&delSink, sink);
+	igraph_delete_vertices(newGraph, delSink);
+	igraph_vs_destroy(&delSink);
+	
+	igraph_vs_t del;
+	igraph_vs_1(&del, head);
+	igraph_delete_vertices(newGraph, del);
+	igraph_vs_destroy(&del);
+	
+	
+	for(int level = 1; level < depth; level++){
+		std::vector<igraph_integer_t> * tasksAtLevel = getGraphsAtLevel(newGraph, level);
+		//Keep merging tasks until nothing is left.
+		while(tasksAtLevel->size() > perLevel){
+			
+			double minRuntime;
+			double secondMinRuntime;
+			int indexOfMin; //needed for updating the vector list later
+			igraph_integer_t minTask;
+			igraph_integer_t secondMinTask;
+			//between the first two tasks at that level, the two mins are set.
+			if(VAN(newGraph,"runtime",tasksAtLevel->at(0)) < VAN(newGraph,"runtime",tasksAtLevel->at(1))){
+				minRuntime = VAN(newGraph,"runtime",tasksAtLevel->at(0));
+				secondMinRuntime = VAN(newGraph,"runtime",tasksAtLevel->at(1));
+				minTask = tasksAtLevel->at(0);
+				secondMinTask = tasksAtLevel->at(1);
+				indexOfMin = 0;
+			}
+			else{
+				minRuntime = VAN(newGraph,"runtime",tasksAtLevel->at(1));
+				secondMinRuntime = VAN(newGraph,"runtime",tasksAtLevel->at(0));
+				minTask = tasksAtLevel->at(1);
+				secondMinTask = tasksAtLevel->at(0);
+				indexOfMin = 1;
+			}
+			//find the two smallest tasks by runtime
+			for(int i = 2; i < tasksAtLevel->size(); i++){
+				double nextRuntime = VAN(newGraph,"runtime",tasksAtLevel->at(i));
+				if(nextRuntime < minRuntime){
+					secondMinRuntime = minRuntime;
+					secondMinTask = minTask;
+					minRuntime = nextRuntime;
+					minTask = tasksAtLevel->at(i);
+					indexOfMin = i;
+				}
+				else if(nextRuntime < secondMinRuntime){
+					secondMinRuntime = nextRuntime;
+					secondMinTask = tasksAtLevel->at(i);
+				}
+			}
+			std::cout << minTask << " " << secondMinTask << " " << tasksAtLevel->size() << "\n";
+			//this will merge minTask into secondMinTask, removing minTask from the vector list.
+			combine(newGraph, secondMinTask, minTask);
+			/* update the igraph_integer_t values in the vector! */
+			tasksAtLevel = getGraphsAtLevel(newGraph,level);
+			
+		}
+		
+	}
+	
+	return newGraph;
+}
+
+/*for the given graph, return a vector list of all tasks at the given level.*/
+std::vector<igraph_integer_t> * getGraphsAtLevel(igraph_t * graph, int level){
+	std::vector<igraph_integer_t> * tasksAtLevel = new std::vector<igraph_integer_t>;
+	for(int i = 0; i < igraph_vcount(graph); i++){
+		if(VAN(graph,"level",i) == level){
+			tasksAtLevel->push_back(i);
+		}
+	}
+		return tasksAtLevel;
 }
