@@ -18,6 +18,12 @@ std::vector<std::string> * exhaustivePermHashStart(igraph_t * graph);
 std::vector<igraph_t *> * randomizedPerm(igraph_t * graph);
 int RandomizedPermEvenSpread(igraph_t * graph, int maxPerLevel, int depthLimit, int attempt_cap);
 bool mergeAChain(igraph_t * graph);
+igraph_t * horizontalClustering(igraph_t * graph, int perLevel, int method);
+std::vector<igraph_integer_t> * getGraphsAtLevel(igraph_t * graph, int level);
+
+
+
+
 struct GlobalOptions * getConfig();
 
 #endif
