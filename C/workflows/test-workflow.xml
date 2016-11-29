@@ -1,0 +1,9 @@
+<?xml version="1" encoding="UTF-8"?>
+<adag xmlns="http://pegasus.isi.edu/schema/DAX" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://pegasus.isi.edu/schema/DAX http://pegasus.isi.edu/schema/dax-2.1.xsd" version="2.1" count="1" index="0" name="test" jobCount="1" fileCount="0" childCount="0">
+
+
+  <job id="ID0000Task" namespace="NAMESPACE" name="Task" version="1" runtime="60">
+  </job>
+
+
+</adag>
