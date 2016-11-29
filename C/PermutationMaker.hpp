@@ -20,6 +20,9 @@ int RandomizedPermEvenSpread(igraph_t * graph, int maxPerLevel, int depthLimit, 
 bool mergeAChain(igraph_t * graph);
 igraph_t * horizontalClustering(igraph_t * graph, int perLevel, int method);
 std::vector<igraph_integer_t> * getGraphsAtLevel(igraph_t * graph, int level);
+igraph_integer_t levelLabel(igraph_t * graph);
+
+void calculateImpactFactors(igraph_t * graph, igraph_integer_t sink);
 
 
 

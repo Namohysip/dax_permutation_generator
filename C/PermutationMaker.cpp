@@ -741,3 +741,84 @@ std::vector<igraph_integer_t> * getGraphsAtLevel(igraph_t * graph, int level){
 	}
 		return tasksAtLevel;
 }
+
+/*Impact factor is defined as the sum of the impact factors of the child tasks, divided
+ by the number of parents the child has. In other words, if a child has 2 parents, and an
+ IF of 0.5, then its contribution to the parent's IF will be 0.5/2 = 0.25.
+ Any task that is the direct parent of TEMP_SINK has a starting IF of 1. */
+void calculateImpactFactors(igraph_t * graph, igraph_integer_t sink){
+	for(int i = 0; i < igraph_vcount(graph); i++){
+		SETVAN(graph,"IF",i,0.0); //start by setting all tasks to 1 IF.
+	}
+	
+	std::queue<igraph_integer_t> que; //queue of tasks that will have their IF calculated
+	/* This segment of the code initializes everything: Sets the bottom tasks to an IF of 1,
+	 and puts their parents onto the queue to later calculate their IF. */
+	igraph_vs_t parentsOfSink;
+	igraph_vit_t parentsOfSinkIter;
+	igraph_vs_adj(&parentsOfSink,sink,IGRAPH_IN);
+	igraph_vit_create(graph,parentsOfSink,&parentsOfSinkIter);
+	while(! IGRAPH_VIT_END(parentsOfSinkIter)){
+		igraph_integer_t parent = IGRAPH_VIT_GET(parentsOfSinkIter); //for each parent of the sink 
+		SETVAN(graph,"IF",parent,1.0); //set its IF to 1
+		
+		igraph_vs_t parents;
+		igraph_vit_t parentsIter;
+		igraph_vs_adj(&parents,parent,IGRAPH_IN); //get a list of each parent's parents.
+		igraph_vit_create(graph,parents,&parentsIter);
+		
+		while(! IGRAPH_VIT_END(parentsIter)){ //for each parent of the parent of the sink
+			que.push(IGRAPH_VIT_GET(parentsIter)); //add it to the queue for later
+			IGRAPH_VIT_NEXT(parentsIter);
+		}
+		igraph_vit_destroy(&parentsIter);
+		igraph_vs_destroy(&parents);
+		IGRAPH_VIT_NEXT(parentsOfSinkIter);
+	}
+	igraph_vit_destroy(&parentsOfSinkIter);
+	igraph_vs_destroy(&parentsOfSink);
+	std::cout << que.size();
+	while(!que.empty()){
+		igraph_integer_t nextNode = que.front();
+		que.pop();
+		//calculate the IF. May be incomplete, but the final time its IF is calculated
+		//will be when all of its children have had their IF also calculated, so the last one
+		//will be the completed IF value.
+		double totalIF = 0;
+		
+		igraph_vs_t children;
+		igraph_vit_t childrenIter;
+		igraph_vs_adj(&children,nextNode,IGRAPH_OUT);
+		igraph_vit_create(graph,children,&childrenIter);
+		while(! IGRAPH_VIT_END(childrenIter)){ //for each of this task's chindren
+			igraph_integer_t child = IGRAPH_VIT_GET(childrenIter);
+			
+			igraph_vs_t parentsOfChild;
+			igraph_vs_adj(&parentsOfChild,child,IGRAPH_IN);
+			igraph_integer_t parentCount = 0; 
+			igraph_vs_size(graph, &parentsOfChild, &parentCount); //get a count of its parents
+			//add its IF / parent count to the total IF of this task
+			totalIF += (double) VAN(graph,"IF",child) / (double) parentCount; 
+			igraph_vs_destroy(&parentsOfChild);
+			IGRAPH_VIT_NEXT(childrenIter);
+		}
+		
+		//set its IF to the total of all (children divided by parentCount) IF values.
+		SETVAN(graph,"IF",nextNode,totalIF); 
+		
+		igraph_vit_destroy(&childrenIter);
+		igraph_vs_destroy(&children);
+		
+		/*This part of the code adds the parents of this task to the queue. */
+		igraph_vs_t parents;
+		igraph_vit_t parentsIter;
+		igraph_vs_adj(&parents,nextNode,IGRAPH_IN);
+		igraph_vit_create(graph,parents,&parentsIter);
+		while(! IGRAPH_VIT_END(parentsIter)){
+			que.push(IGRAPH_VIT_GET(parentsIter));
+			IGRAPH_VIT_NEXT(parentsIter);
+		}
+		igraph_vit_destroy(&parentsIter);
+		igraph_vs_destroy(&parents);
+	}
+}

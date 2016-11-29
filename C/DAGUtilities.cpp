@@ -5,47 +5,19 @@
 
 igraph_t * imported;
 void printNodes(igraph_t* graph){
-	igraph_vector_t gtypes, vtypes, etypes;
-	igraph_strvector_t gnames, vnames, enames;
 	long int i;
-	
-	long int j;
-	
-	igraph_vector_init(&gtypes, 0);
-	igraph_vector_init(&vtypes, 0);
-	igraph_vector_init(&etypes, 0);
-	igraph_strvector_init(&gnames, 0);
-	igraph_strvector_init(&vnames, 0);
-	igraph_strvector_init(&enames, 0);
-	
-	igraph_cattribute_list(graph, &gnames, &gtypes, &vnames, &vtypes, &enames, &etypes);
 	
 	for(i = 0; i < igraph_vcount(graph); i++){
 		std::cout << "ID: " << VAS(graph, "id", i) << "," << VAN(graph, "runtime" ,i) << "\n";
 	}
 	
-	igraph_vector_destroy(&gtypes);
-	igraph_vector_destroy(&vtypes);
-	igraph_vector_destroy(&etypes);
-	igraph_strvector_destroy(&gnames);
-	igraph_strvector_destroy(&enames);
-	igraph_strvector_destroy(&vnames);
 	
 }
 
 void printEdges(igraph_t* graph){
-	igraph_vector_t gtypes, vtypes, etypes;
-	igraph_strvector_t gnames, vnames, enames;
 	long int i;
 	
 	long int j;
-	
-	igraph_vector_init(&gtypes, 0);
-	igraph_vector_init(&vtypes, 0);
-	igraph_vector_init(&etypes, 0);
-	igraph_strvector_init(&gnames, 0);
-	igraph_strvector_init(&vnames, 0);
-	igraph_strvector_init(&enames, 0);
 	
 	igraph_es_t edges;
 	igraph_es_all(&edges, IGRAPH_EDGEORDER_FROM);
@@ -75,13 +47,16 @@ void printEdges(igraph_t* graph){
 	std::cout << "Number of heads: " << headcount << "\n";
 	std::cout << "Number of sinks: " << sinkcount << "\n";
 	}
-	igraph_vector_destroy(&gtypes);
-	igraph_vector_destroy(&vtypes);
-	igraph_vector_destroy(&etypes);
-	igraph_strvector_destroy(&gnames);
-	igraph_strvector_destroy(&enames);
-	igraph_strvector_destroy(&vnames);
 	igraph_es_destroy(&edges);
+	igraph_eit_destroy(&edgeIter);
+}
+
+void printNodesWithLevelsAndIF(igraph_t * graph){
+	
+	for(int i = 0; i < igraph_vcount(graph); i++){
+		std::cout << "ID: " << VAS(graph, "id", i) << "," << VAN(graph, "runtime" ,i)
+				<< " level: " << VAN(graph,"level",i) << " IF: " << VAN(graph,"IF",i) << "\n";
+	}
 }
 
 void setImported(igraph_t * graph){
