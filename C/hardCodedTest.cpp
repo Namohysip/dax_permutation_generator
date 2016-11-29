@@ -138,8 +138,11 @@ void test_with_small_hardcoded_graph() {
 	struct GlobalOptions * settings = getConfig();
 	settings->maxGraphs = 20000;
 	settings->timeLimit = 1;
-	settings->fileBase = "outout/test";
+	settings->fileBase = "output/test";
+	
+	/*
 	std::cout << "Testing randomized method\n";
+	
 	std::vector<igraph_t *> * randomized = randomizedPerm(&hash);
 	std::cout << randomized->size() << "\n";
 	
@@ -150,11 +153,11 @@ void test_with_small_hardcoded_graph() {
 		total += igraph_vcount(*it);
 	}
 	std::cout << std::to_string(total / randomized->size()) << "\n"; 
-	
+	*/
 	Workflow * workflow = new Workflow("some_workflow");
 	if (workflow->load_from_xml("workflows/1000genome.xml")) {
 	  exit(1);
-	}
+	} 
 	/*
 	std::cout << "Edge count: " << igraph_ecount(getImported()) << "\n";
 	std::cout << "Testing randomized method on workflow\n";
@@ -170,6 +173,11 @@ void test_with_small_hardcoded_graph() {
 	std::cout << std::to_string(workTotal / workflowRand->size());
 	*/
 	
+	igraph_t * import = getImported();
+	igraph_t * g = horizontalClustering(getImported(), 5, 0);
+	printNodes(g);
+	
+	/*
 	printEdges(getImported());
 	igraph_integer_t head = levelLabel(getImported());
 	std::cout << VAS(getImported(),"id",head) << "\n";
@@ -179,6 +187,9 @@ void test_with_small_hardcoded_graph() {
 	head = levelLabel(&hash);
 	std::cout << VAS(&hash,"id",head) << "\n";
 	std::cout << VAS(&hash,"id",(int) head + 1) << "\n";
+	
+	
+	*/
 	 igraph_vs_destroy(&del);
 	 igraph_es_destroy(&edel);
 	 igraph_destroy(&notDuplicate);
