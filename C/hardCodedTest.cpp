@@ -134,10 +134,9 @@ void test_with_small_hardcoded_graph() {
 	notHashed->clear();
 	delete(notHashed); 
 	*/
-	struct GlobalOptions * settings = getConfig();
-	settings->maxGraphs = 20000;
-	settings->timeLimit = 1;
-	settings->fileBase = "output/test";
+	getGlobalSettings()->maxGraphs = 20000;
+	getGlobalSettings()->timeLimit = 1;
+	getGlobalSettings()->fileBase = "output/test";
 	
 	/*
 	std::cout << "Testing randomized method\n";
@@ -158,12 +157,12 @@ void test_with_small_hardcoded_graph() {
 	  exit(1);
 	} 
 	/*
-	std::cout << "Edge count: " << igraph_ecount(getImported()) << "\n";
+	std::cout << "Edge count: " << igraph_ecount(getGlobalSettings()->original_graph) << "\n";
 	std::cout << "Testing randomized method on workflow\n";
-	std::vector<igraph_t *> * workflowRand = randomizedPerm(getImported(), 100, 20000, "test");
+	std::vector<igraph_t *> * workflowRand = randomizedPerm(getGlobalSettings()->original_graph, 100, 20000, "test");
 	std::cout << workflowRand->size() << "\n";
 	
-	std::cout << "Original graph size: " << igraph_vcount(getImported()) << "\n";
+	std::cout << "Original graph size: " << igraph_vcount(getGlobalSettings()->original_graph) << "\n";
 	std::cout << "Average graph size: ";
 	int workTotal = 0;
 	for(std::vector<igraph_t *>::iterator it = workflowRand->begin(); it != workflowRand->end(); ++it){
@@ -172,8 +171,8 @@ void test_with_small_hardcoded_graph() {
 	std::cout << std::to_string(workTotal / workflowRand->size());
 	*/
 	
-	igraph_t * import = getImported();
-	//igraph_t * g = horizontalClustering(getImported(), 5, 0);
+	igraph_t * import = getGlobalSettings()->original_graph;
+	//igraph_t * g = horizontalClustering(getGlobalSettings()->original_graph, 5, 0);
 	igraph_integer_t head = levelLabel(import);
 	calculateImpactFactors(import, (int) head + 1);
 	
@@ -181,10 +180,10 @@ void test_with_small_hardcoded_graph() {
 	printEdges(import);
 	
 	/*
-	printEdges(getImported());
-	igraph_integer_t head = levelLabel(getImported());
-	std::cout << VAS(getImported(),"id",head) << "\n";
-	std::cout << VAS(getImported(),"id",(int) head + 1) << "\n";
+	printEdges(getGlobalSettings()->original_graph);
+	igraph_integer_t head = levelLabel(getGlobalSettings()->original_graph);
+	std::cout << VAS(getGlobalSettings()->original_graph,"id",head) << "\n";
+	std::cout << VAS(getGlobalSettings()->original_graph,"id",(int) head + 1) << "\n";
 	
 	std::cout << "for 'hash' graph: \n";
 	head = levelLabel(&hash);

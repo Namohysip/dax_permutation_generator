@@ -216,8 +216,6 @@ bool parse_main_args(int argc, char * argv[], MainArguments & main_args)
 }
 
 
-void test_with_small_hardcoded_graph();
-
 int main (int argc, char* argv[]) {
 
 	MainArguments main_args;
@@ -247,38 +245,35 @@ int main (int argc, char* argv[]) {
 	if (workflow->load_from_xml(dax_file)) {
 	  exit(1);
 	}
-	//printEdges(getImported());
-	//printNodes(getImported());
+	//printEdges(getGlobalSettings()->original_graph);
+	//printNodes(getGlobalSettings()->original_graph);
 	
-	/*Set configurations for permutation making*/
-	struct GlobalOptions * settings = getConfig();
-	
-	settings->fileBase = main_args.output_prefix;
-	settings->maxGraphs = main_args.max_permutations;
-	settings->timeLimit = main_args.timeout;
-	settings->mergeChains = main_args.chaining;
+	getGlobalSettings()->fileBase = main_args.output_prefix;
+	getGlobalSettings()->maxGraphs = main_args.max_permutations;
+	getGlobalSettings()->timeLimit = main_args.timeout;
+	getGlobalSettings()->mergeChains = main_args.chaining;
 	
 	std::cout << "Generating permutations...\n";
 	std::vector<igraph_t *> * clusterings;
 	if(method == "exhaustive"){
 		if(hashed){
 			/*Compute all transformations with hashing enabled to use up less memory */
-			std::vector<std::string> * hashes = exhaustivePermHashStart(getImported());
+			std::vector<std::string> * hashes = exhaustivePermHashStart(getGlobalSettings()->original_graph);
 			std::cout << "Total permutations made: " << hashes->size() << "\n";
 		}
 		else
 		{
 			
-			clusterings = exhaustivePermStart(getImported());
+			clusterings = exhaustivePermStart(getGlobalSettings()->original_graph);
 			std::cout << "Total permutations made: " << clusterings->size() << "\n";
 		}
 	}
 	else if(method == "random"){
-		clusterings = randomizedPerm(getImported());
+		clusterings = randomizedPerm(getGlobalSettings()->original_graph);
 		std::cout << "Total permutations made: " << clusterings->size() << "\n";
 	}
 	else if(method == "randomLimited"){
-		std::cout << "Total permutations made: " << RandomizedPermEvenSpread(getImported(), max_permutations, min_size, attempt_cap) << "\n";
+		std::cout << "Total permutations made: " << RandomizedPermEvenSpread(getGlobalSettings()->original_graph, max_permutations, min_size, attempt_cap) << "\n";
 	}
 	else {
 		std::cerr << "This type of clustering option is not supported.\n";

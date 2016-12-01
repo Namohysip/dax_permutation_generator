@@ -3,7 +3,8 @@
 #include <string.h>
 #include "DAGUtilities.hpp"
 
-igraph_t * imported;
+//igraph_t * imported;
+
 void printNodes(igraph_t* graph){
 	long int i;
 	
@@ -59,6 +60,7 @@ void printNodesWithLevelsAndIF(igraph_t * graph){
 	}
 }
 
+/*
 void setImported(igraph_t * graph){
 	imported = graph;
 }
@@ -66,3 +68,4 @@ void setImported(igraph_t * graph){
 igraph_t * getImported(){
 	return imported;
 }
+*/

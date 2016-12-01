@@ -11,12 +11,14 @@
 #include "pugixml-1.7/pugixml.hpp"
 
 #include "workflow.hpp"
+#include "PermutationMaker.hpp"
 
 
 using namespace std;
 using namespace pugi;
 
-void setImported(igraph_t *);
+//void setImported(igraph_t *);
+
 Workflow::Workflow(const std::string & name)
 {
     this->name = name;
@@ -140,8 +142,8 @@ int Workflow::load_from_xml(const std::string &xml_filename)
 	  }
       }
 
-	  std::cout << "Done!\n";
-	setImported(graph);
+	std::cout << "Done!\n";
+	getGlobalSettings()->original_graph = graph;
 	return 0;
 }
 

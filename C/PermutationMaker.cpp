@@ -13,7 +13,7 @@
 #include "PermutationMaker.hpp"
 
 int permCount = 0;
-struct GlobalOptions config;
+struct GlobalSettings config;
 
 void combine(igraph_t * G, igraph_integer_t node1, igraph_integer_t node2){
 	double newRuntime = VAN(G, "runtime", node1) + VAN(G, "runtime", node2);
@@ -626,7 +626,7 @@ igraph_integer_t levelLabel(igraph_t * graph){
 	return head;
 }
 
-struct GlobalOptions * getConfig(){
+struct GlobalSettings * getGlobalSettings(){
 	return &config;
 }
 
