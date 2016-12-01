@@ -8,7 +8,6 @@
 #include <unistd.h>
 #include <fstream>
 
-
 #include "workflow.hpp"
 #include "DAGUtilities.hpp"
 #include "PermutationMaker.hpp"
