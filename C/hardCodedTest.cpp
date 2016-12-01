@@ -10,7 +10,6 @@
 #include "DAGUtilities.hpp"
 #include "PermutationMaker.hpp"
 
-igraph_integer_t levelLabel(igraph_t * graph);
 void test_with_small_hardcoded_graph();
 
 
@@ -174,8 +173,12 @@ void test_with_small_hardcoded_graph() {
 	*/
 	
 	igraph_t * import = getImported();
-	igraph_t * g = horizontalClustering(getImported(), 5, 0);
-	printNodes(g);
+	//igraph_t * g = horizontalClustering(getImported(), 5, 0);
+	igraph_integer_t head = levelLabel(import);
+	calculateImpactFactors(import, (int) head + 1);
+	
+	printNodesWithLevelsAndIF(import);
+	printEdges(import);
 	
 	/*
 	printEdges(getImported());
