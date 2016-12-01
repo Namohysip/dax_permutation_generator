@@ -69,7 +69,6 @@ void combine(igraph_t * G, igraph_integer_t node1, igraph_integer_t node2){
 	
 	igraph_vs_t del;
 	igraph_vs_1(&del, node2);
-	std::cout << "Node2 id: " << VAS(G,"id",node2) << "\n";
 	igraph_delete_vertices(G, del);
 	SETVAN(G, "runtime", node1, newRuntime);
 	igraph_vs_destroy(&del);
