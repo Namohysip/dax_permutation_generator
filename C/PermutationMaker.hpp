@@ -12,6 +12,8 @@ struct GlobalSettings {
 };
 
 void combine(igraph_t * , igraph_integer_t, igraph_integer_t);
+
+void combineMulti(igraph_t * graph, std::vector<igraph_integer_t> * tasks);
 bool addWithoutDuplicates( std::vector<igraph_t *> * , igraph_t *);
 std::vector<igraph_t *> * exhaustivePermStart(igraph_t * graph);
 igraph_t * getImported();

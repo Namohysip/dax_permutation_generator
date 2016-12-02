@@ -179,6 +179,21 @@ void test_with_small_hardcoded_graph() {
 	printNodesWithLevelsAndIF(import);
 	printEdges(import);
 	
+	std::vector<igraph_integer_t> * allTasks = new std::vector<igraph_integer_t>;
+
+	for(int i = 0; i < igraph_vcount(import); i++){
+		allTasks->push_back(i);
+	}
+	double total = 0;
+	for(int i = 0; i < igraph_vcount(import); i++){
+		total += VAN(import,"runtime",i);
+	}
+	std::cout << "Total runtime: " << total << "\n";
+	combineMulti(import, allTasks);
+	
+	printNodes(import);
+	
+	
 	/*
 	printEdges(getGlobalSettings()->original_graph);
 	igraph_integer_t head = levelLabel(getGlobalSettings()->original_graph);

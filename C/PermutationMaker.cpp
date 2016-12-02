@@ -16,6 +16,7 @@ int permCount = 0;
 struct GlobalSettings config;
 
 void combine(igraph_t * G, igraph_integer_t node1, igraph_integer_t node2){
+	
 	double newRuntime = VAN(G, "runtime", node1) + VAN(G, "runtime", node2);
 	//node1 retains its original ID
 	
@@ -27,7 +28,6 @@ void combine(igraph_t * G, igraph_integer_t node1, igraph_integer_t node2){
 	igraph_vs_adj(&in2, node2, IGRAPH_IN); //get all predecessors of node2
 	igraph_vit_create(G, out2, &outIter2);
 	igraph_vit_create(G, in2, &inIter2);
-	
 	while (! IGRAPH_VIT_END(outIter2)){
 		igraph_integer_t child = IGRAPH_VIT_GET(outIter2);
 		/*Delete the edge (node2, child) and then add edge (node1, child) */
@@ -69,7 +69,6 @@ void combine(igraph_t * G, igraph_integer_t node1, igraph_integer_t node2){
 	
 	igraph_vs_t del;
 	igraph_vs_1(&del, node2);
-	igraph_delete_vertices(G, del);
 	SETVAN(G, "runtime", node1, newRuntime);
 	igraph_delete_vertices(G, del);
 	igraph_vs_destroy(&del);
@@ -77,6 +76,33 @@ void combine(igraph_t * G, igraph_integer_t node1, igraph_integer_t node2){
 	igraph_vit_destroy(&inIter2);
 	igraph_vs_destroy(&out2);
 	igraph_vs_destroy(&in2);
+}
+/*Combines all tasks in the vector into the a single task,
+ retaining the ID of the first task in the vector */
+void combineMulti(igraph_t * graph, std::vector<igraph_integer_t> * tasks){
+	if (tasks->size() < 2){
+		return;
+	}
+	igraph_integer_t first = tasks->at(0);
+	tasks->erase(tasks->begin());
+	
+	while(tasks->size() > 0){
+	igraph_integer_t next = tasks->at(0);
+	combine(graph, first, next);
+	tasks->erase(tasks->begin());
+	if((int) first > (int) next){
+		first = (int) first - 1;
+	}
+	
+	for(int i = 0; i < tasks->size(); i++){
+		if((int) tasks->at(i) > (int) next){
+			
+			tasks->at(i) = tasks->at(i) - 1;
+		}
+	}
+	}
+	
+	
 }
 
 /*Determines whether the two given nodes in the two different graphs are the same, in that
