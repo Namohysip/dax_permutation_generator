@@ -164,13 +164,21 @@ int parse_opt(int key, char *arg, struct argp_state *state)
  */
 bool parse_main_args(int argc, char * argv[], MainArguments & main_args)
 {
-    struct argp_option options[] =
+	std::string method_description = "\nWorkflow generation  method. String, exactly one required from the following: \n" 
+						"\nexhaustive: Will exhaustively find all possible clustering options for the input workflow. " 
+						"Can me modified with hash, timeout, max-permutations, min-size, and chain-merge options for better performance or more specialized output.\n\n" 
+						"random: will randomly combine two tasks until time runs out or a number of clustering options were generated. --hash will have no effect. " 
+						"Unlike exhaustive, random will ALWAYS use a timeout and max-permutations value.\n\n" 
+						"randomLimited: A specialized version of a randomized clustering designed for a more evenly-distributed set of clusterings, from fine grained to coarse grained. Uses a specialized option, " 
+						"attempt-cap, which is how many times each iteration will attempt to make a new clustering using one of the graphs. If the cap is reached, that graph will no longer be used, and there will be" 
+						" fewer clustering options for the more coarse-grained clusterings. Also, max-permutations is used instead as how many clusterings per size instead.";
+    struct argp_option options[] = 
     {
         {"dax", INPUT, "FILENAME", 0, "The input DAX file with the original workflow (string, required)", 0},
         {"output", OUTPUT_PREFIX, "PATH_PREFIX", 0, "The filepath prefix for generating output DAX files (string, required)", 0},
         {"timeout", TIMEOUT, "SECONDS", 0, "Time out value (float, default: 0 - no timeout)", 0},
         {"max-permutations", MAX_PERMUTATIONS, "COUNT", 0, "Maximum number of permutations to generate (integer, default: 0 - no maximum)", 0},
-        {"method", METHOD, "NAME", 0, "Workflow generation  method (string, required): limited, exhaustive, hashed, random, randomLimited", 0},
+        {"method", METHOD, "NAME", 0, method_description.c_str(), 0},
         {"test", TEST, 0, 0, "Only run a hard-coded test for iGraph", 0},
 		{"hash", HASH, 0, 0, "Use hashing if applicable. Silently does nothing if hashing is unavailable for the given method.", 0},
 		{"min-size", MIN_SIZE,"min_size",0,"the minimum size for workflows to be output. Must be above 0. Default is 1."},
@@ -236,7 +244,6 @@ int main (int argc, char* argv[]) {
 	double timeout = main_args.timeout;
 	int max_permutations = main_args.max_permutations;
 	int attempt_cap = main_args.attempt_cap;
-	int min_size = main_args.min_size;
 	bool hashed = main_args.hash;
 	
 	/* Load the workflow from the DAX file*/
@@ -251,6 +258,8 @@ int main (int argc, char* argv[]) {
 	getGlobalSettings()->maxGraphs = main_args.max_permutations;
 	getGlobalSettings()->timeLimit = main_args.timeout;
 	getGlobalSettings()->mergeChains = main_args.chaining;
+	getGlobalSettings()->minSize = main_args.min_size;
+	getGlobalSettings()->attemptCap = main_args.attempt_cap;
 	
 	std::cout << "Generating permutations...\n";
 	std::vector<igraph_t *> * clusterings;
@@ -272,7 +281,7 @@ int main (int argc, char* argv[]) {
 		std::cout << "Total permutations made: " << clusterings->size() << "\n";
 	}
 	else if(method == "randomLimited"){
-		std::cout << "Total permutations made: " << RandomizedPermEvenSpread(getGlobalSettings()->original_graph, max_permutations, min_size, attempt_cap) << "\n";
+		std::cout << "Total permutations made: " << RandomizedPermEvenSpread(getGlobalSettings()->original_graph) << "\n";
 	}
 	else {
 		std::cerr << "This type of clustering option is not supported.\n";

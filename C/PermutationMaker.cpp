@@ -237,7 +237,7 @@ void dagToDAX(igraph_t * graph){
  and the recursive function will go back to the top level and terminate. 
  if the time limit or max number of graphs is <= 0, it is assumed to not have a limit*/
 bool exhaustivePerm(std::vector<igraph_t *> * graphs, igraph_t * graph, clock_t start){
-	if(igraph_vcount(graph)< 2){
+	if(igraph_vcount(graph)<= config.minSize){
 		return true; //base case -- only one node left
 	}
 	if(config.timeLimit > 0){
@@ -525,17 +525,17 @@ std::vector<igraph_t *> * randomizedPerm(igraph_t * graph){
 	return graphs;
 }
 
-int RandomizedPermEvenSpread(igraph_t * graph, int maxPerLevel, int depthLimit, int attempt_cap){
+int RandomizedPermEvenSpread(igraph_t * graph){
 	srand((double) clock());
 	std::vector<igraph_t *> * open = new std::vector<igraph_t *>;
 	dagToDAX(graph);
 	int i;
-	for(i = 0; i < maxPerLevel; i++){ //create the original batch of permutations from the original graph.
+	for(i = 0; i < config.maxGraphs; i++){ //create the original batch of permutations from the original graph.
 		int attempt = 0;
-		while(!makeRandomCombination(open,graph) && attempt < attempt_cap){
+		while(!makeRandomCombination(open,graph) && attempt < config.attemptCap){
 			attempt++;
 		}
-		if(attempt < attempt_cap){
+		if(attempt < config.attemptCap){
 			if((i+1) % 1000 == 0){
 					std::cout << "Made these many permutations: " << i << "\n";
 			}
@@ -545,11 +545,11 @@ int RandomizedPermEvenSpread(igraph_t * graph, int maxPerLevel, int depthLimit, 
 	while(open->size() > 0){
 		igraph_t * iteration = open->front(); //treats this as a breadth-first search.
 		int attempt = 0;
-		if(igraph_vcount(iteration) > depthLimit){
-			while(!makeRandomCombination(open, iteration) && attempt < attempt_cap){
+		if(igraph_vcount(iteration) > config.minSize){
+			while(!makeRandomCombination(open, iteration) && attempt < config.attemptCap){
 				attempt++;
 			}
-			if(attempt < attempt_cap){
+			if(attempt < config.attemptCap){
 				i++;
 				if(i % 1000 == 0){
 						std::cout << "Made these many permutations: " << i << "\n";
