@@ -15,6 +15,8 @@
 int permCount = 0;
 struct GlobalSettings config;
 
+/*Combines the two given nodes, such that node2 is combined into node2.
+Runtimes are added together, and the ID of node1 is kept. */
 void combine(igraph_t * G, igraph_integer_t node1, igraph_integer_t node2){
 	
 	double newRuntime = VAN(G, "runtime", node1) + VAN(G, "runtime", node2);
@@ -77,6 +79,14 @@ void combine(igraph_t * G, igraph_integer_t node1, igraph_integer_t node2){
 	igraph_vs_destroy(&out2);
 	igraph_vs_destroy(&in2);
 }
+/*The same as the other combine, but takse the strings that identify the tasks
+ by their "id" value rather than their actual vertex id.*/
+void combine ( igraph_t * graph, std::string node1, std::string node2){
+	igraph_integer_t realNode1 = findVertexID(graph, node1);
+	igraph_integer_t realNode2 = findVertexID(graph, node2);
+	combine(graph, realNode1, realNode2);
+}
+
 /*Combines all tasks in the vector into the a single task,
  retaining the ID of the first task in the vector */
 void combineMulti(igraph_t * graph, std::vector<igraph_integer_t> * tasks){
@@ -87,23 +97,38 @@ void combineMulti(igraph_t * graph, std::vector<igraph_integer_t> * tasks){
 	tasks->erase(tasks->begin());
 	
 	while(tasks->size() > 0){
-	igraph_integer_t next = tasks->at(0);
-	combine(graph, first, next);
-	tasks->erase(tasks->begin());
-	if((int) first > (int) next){
-		first = (int) first - 1;
-	}
-	
-	for(int i = 0; i < tasks->size(); i++){
-		if((int) tasks->at(i) > (int) next){
-			
-			tasks->at(i) = tasks->at(i) - 1;
+		igraph_integer_t next = tasks->at(0);
+		combine(graph, first, next);
+		tasks->erase(tasks->begin());
+		if((int) first > (int) next){
+			first = (int) first - 1;
 		}
-	}
+	
+		for(int i = 0; i < tasks->size(); i++){
+			if((int) tasks->at(i) > (int) next){
+			
+				tasks->at(i) = tasks->at(i) - 1;
+			}
+		}
 	}
 	
 	
 }
+/*Same as the othger combineMulti, but takes a list of strings that correspond
+  to the "id" values of the vertices to be combined. Converts the list to real ids,
+  and then calls the other combineMulti */
+void combineMulti(igraph_t * graph, std::vector<std::string> * tasks){
+	if (tasks -> size() < 2) {
+		return;
+	}
+	std::vector<igraph_integer_t> * realTasks = new std::vector<igraph_integer_t>;
+	for(int i = 0; i < tasks->size(); i++){
+		realTasks->push_back(findVertexID(graph, tasks->at(i)));
+	}
+	combineMulti(graph, realTasks);
+	delete(realTasks);
+}
+
 
 /*Determines whether the two given nodes in the two different graphs are the same, in that
 they have the same runtime and id attribute values. */
@@ -848,4 +873,13 @@ void calculateImpactFactors(igraph_t * graph, igraph_integer_t sink){
 		igraph_vit_destroy(&parentsIter);
 		igraph_vs_destroy(&parents);
 	}
+}
+
+igraph_integer_t findVertexID(igraph_t * graph, std::string id){
+	for(int i = 0; i < igraph_vcount(graph); i++){
+		if( strcmp(VAS(graph, "id", i), id.c_str()) == 0){
+			return i;
+		}
+	}
+	return -1;
 }

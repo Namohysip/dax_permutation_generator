@@ -13,6 +13,11 @@ struct GlobalSettings {
 	int attemptCap;
 };
 
+struct taskBin {
+	double totalRuntime;
+	std::vector<std::string> ids;
+};
+
 void combine(igraph_t * , igraph_integer_t, igraph_integer_t);
 
 void combineMulti(igraph_t * graph, std::vector<igraph_integer_t> * tasks);
@@ -27,6 +32,7 @@ igraph_t * horizontalClustering(igraph_t * graph, int perLevel, int method);
 std::vector<igraph_integer_t> * getGraphsAtLevel(igraph_t * graph, int level);
 igraph_integer_t levelLabel(igraph_t * graph);
 void test_with_small_hardcoded_graph();
+igraph_integer_t findVertexID(igraph_t * graph, std::string id);
 
 
 void calculateImpactFactors(igraph_t * graph, igraph_integer_t sink);
