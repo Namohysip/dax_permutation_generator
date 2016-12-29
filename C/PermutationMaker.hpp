@@ -13,9 +13,17 @@ struct GlobalSettings {
 	int attemptCap;
 };
 
+/*used to preemptively store tasks for clustering
+ all at once rather than one by one. */
 struct taskBin {
 	double totalRuntime;
 	std::vector<std::string> ids;
+};
+
+/*Used to keep track of the distance from a graph. */
+struct taskDistance {
+	int distance = 0;
+	igraph_integer_t id = -1;
 };
 
 void combine(igraph_t * , igraph_integer_t, igraph_integer_t);
@@ -28,7 +36,7 @@ std::vector<std::string> * exhaustivePermHashStart(igraph_t * graph);
 std::vector<igraph_t *> * randomizedPerm(igraph_t * graph);
 int RandomizedPermEvenSpread(igraph_t * graph);
 bool mergeAChain(igraph_t * graph);
-igraph_t * horizontalClustering(igraph_t * graph, int perLevel, int method);
+igraph_t * horizontalClustering(igraph_t * graph, int perLevel);
 std::vector<igraph_integer_t> * getGraphsAtLevel(igraph_t * graph, int level);
 igraph_integer_t levelLabel(igraph_t * graph);
 void test_with_small_hardcoded_graph();

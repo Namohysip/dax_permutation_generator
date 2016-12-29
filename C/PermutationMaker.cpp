@@ -7,6 +7,8 @@
 #include <fstream>
 #include <ctime>
 #include <queue>
+#include <climits>
+#include<map>
 
 #include "sha256.hpp"
 #include "DAGUtilities.hpp"
@@ -709,8 +711,13 @@ bool mergeAChain(igraph_t * graph){
 	}
 	return false;
 }
-
-igraph_t * horizontalClustering(igraph_t * graph, int perLevel, int method){
+/*Begins by creating a copy of the source graph.
+  All work is done on the new graph.
+  Labels all levels.
+  Combines into different bins per level to then combine in the graph,
+  Number of bins per level is determined by perLevel parameter.
+  */
+igraph_t * horizontalClustering(igraph_t * graph, int perLevel){
 	//Make new graph and label their levels
 	igraph_t * newGraph = new igraph_t;
 	igraph_copy(newGraph, graph);
@@ -729,55 +736,54 @@ igraph_t * horizontalClustering(igraph_t * graph, int perLevel, int method){
 	igraph_delete_vertices(newGraph, del);
 	igraph_vs_destroy(&del);
 	
-	
+	//For each level, combine tasks such that for each given bin, the largest task is put into the 
+	//most empty bin, and so on, until all tasks have been placed in a bin.
 	for(int level = 1; level < depth; level++){
 		std::vector<igraph_integer_t> * tasksAtLevel = getGraphsAtLevel(newGraph, level);
+		std::vector<struct taskBin *> * taskBins = new std::vector<struct taskBin *>;
+		struct taskBin * smallestBin;
+		for(int i = 0; i < perLevel; i++){
+			taskBins->push_back(new struct taskBin);
+		}
+		smallestBin = taskBins->at(0);
 		//Keep merging tasks until nothing is left.
-		while(tasksAtLevel->size() > perLevel){
+		while(tasksAtLevel->size() > 0){
 			
-			double minRuntime;
-			double secondMinRuntime;
-			int indexOfMin; //needed for updating the vector list later
-			igraph_integer_t minTask;
-			igraph_integer_t secondMinTask;
-			//between the first two tasks at that level, the two mins are set.
-			if(VAN(newGraph,"runtime",tasksAtLevel->at(0)) < VAN(newGraph,"runtime",tasksAtLevel->at(1))){
-				minRuntime = VAN(newGraph,"runtime",tasksAtLevel->at(0));
-				secondMinRuntime = VAN(newGraph,"runtime",tasksAtLevel->at(1));
-				minTask = tasksAtLevel->at(0);
-				secondMinTask = tasksAtLevel->at(1);
-				indexOfMin = 0;
-			}
-			else{
-				minRuntime = VAN(newGraph,"runtime",tasksAtLevel->at(1));
-				secondMinRuntime = VAN(newGraph,"runtime",tasksAtLevel->at(0));
-				minTask = tasksAtLevel->at(1);
-				secondMinTask = tasksAtLevel->at(0);
-				indexOfMin = 1;
-			}
-			//find the two smallest tasks by runtime
-			for(int i = 2; i < tasksAtLevel->size(); i++){
+			double maxRuntime = VAN(newGraph,"runtime",tasksAtLevel->at(0));
+			int indexOfMax = 0; //needed for updating the vector list later
+			igraph_integer_t maxTask = tasksAtLevel->at(0);
+			
+			//find the largest task by runtime
+			for(int i = 0; i < tasksAtLevel->size(); i++){
 				double nextRuntime = VAN(newGraph,"runtime",tasksAtLevel->at(i));
-				if(nextRuntime < minRuntime){
-					secondMinRuntime = minRuntime;
-					secondMinTask = minTask;
-					minRuntime = nextRuntime;
-					minTask = tasksAtLevel->at(i);
-					indexOfMin = i;
-				}
-				else if(nextRuntime < secondMinRuntime){
-					secondMinRuntime = nextRuntime;
-					secondMinTask = tasksAtLevel->at(i);
+				if(nextRuntime > maxRuntime){
+					maxRuntime = nextRuntime;
+					indexOfMax = i;
+					maxTask = tasksAtLevel->at(i);
 				}
 			}
-			std::cout << minTask << " " << secondMinTask << " " << tasksAtLevel->size() << "\n";
-			//this will merge minTask into secondMinTask, removing minTask from the vector list.
-			combine(newGraph, secondMinTask, minTask);
-			/* update the igraph_integer_t values in the vector! */
-			tasksAtLevel = getGraphsAtLevel(newGraph,level);
-			
+			//place the largest task in the smallest bin
+			smallestBin->totalRuntime += maxRuntime;
+			smallestBin->ids.push_back(VAS(newGraph,"id",maxTask));
+			tasksAtLevel->erase(tasksAtLevel->begin() + indexOfMax);
+			//find new smallest bin
+			for(int i = 0; i < taskBins->size(); i++){
+				if(smallestBin->totalRuntime > taskBins->at(i)->totalRuntime){
+					smallestBin = taskBins->at(i);
+				}
+			}
+		}
+		//after the bins have all been properly clustered at that level...
+		for(int i = 0; i < taskBins->size(); i++){
+			combineMulti(newGraph, &(taskBins->at(i)->ids));
 		}
 		
+		//memory cleanup
+		for(int i = 0; i < taskBins->size(); i++){
+			delete(taskBins->at(i));
+		}
+		delete(tasksAtLevel);
+		delete(taskBins);
 	}
 	
 	return newGraph;
@@ -873,6 +879,136 @@ void calculateImpactFactors(igraph_t * graph, igraph_integer_t sink){
 		igraph_vit_destroy(&parentsIter);
 		igraph_vs_destroy(&parents);
 	}
+}
+/*Adds without duplicates the id of a task and its distance to the vector of tasks, as long as that id
+  hasn't already been added to that vector. */
+void addIdWithoutDuplicates(std::vector<struct taskDistance> * tasks, igraph_integer_t id, int dist){
+	for(int i = 0; i < tasks->size(); i++){ //check if the id is not already on the list
+		if((int) id == (int) ((tasks->at(i)).id)){
+			return;
+		}
+	}
+	struct taskDistance * newTask = new struct taskDistance;
+	newTask->id = id;
+	newTask->distance = dist;
+	tasks->push_back(*newTask);
+	delete(newTask);
+}
+
+/*Gets the minimum distance between two nodes, assuming they're at the same level.
+  If the only node they have in common is TEMP_SINK, it returns INT_MAX instead. */
+int distanceBetween ( igraph_t * graph, igraph_integer_t node1, igraph_integer_t node2){
+	std::vector<struct taskDistance> tasks1;
+	std::vector<struct taskDistance> tasks2;
+	
+	struct taskDistance first;
+	first.id = node1;
+	first.distance = 0;
+	tasks1.push_back(first);
+	int i = 0;
+	//get a list of all tasks from the first task.
+	while(i < tasks1.size()){
+		igraph_integer_t parent = tasks1.at(i).id;
+		igraph_integer_t distance = tasks1.at(i).distance + 1;
+		igraph_vs_t children;
+		igraph_vit_t childrenIter;
+		igraph_vs_adj(&children,parent,IGRAPH_OUT);
+		igraph_vit_create(graph,children,&childrenIter);
+		while(! IGRAPH_VIT_END(childrenIter)){ //for each of this task's chindren
+			igraph_integer_t child = IGRAPH_VIT_GET(childrenIter);
+			/*new ids are added only once, and only the first time it is found is used.
+			  Since this is effectively a breadth-first-search, the first time the task
+			  is found is the shortest distance from the parent. */
+			addIdWithoutDuplicates(&tasks1, child, distance);
+			IGRAPH_VIT_NEXT(childrenIter);
+		}
+		igraph_vit_destroy(&childrenIter);
+		igraph_vs_destroy(&children);
+		i++;
+	}
+	first.id = node2;
+	first.distance = 0;
+	tasks2.push_back(first);
+	i = 0;
+	//Do the same thing again for the second task.
+	while(i < tasks2.size()){
+		igraph_integer_t parent = tasks2.at(i).id;
+		igraph_integer_t distance = tasks2.at(i).distance + 1;
+		igraph_vs_t children;
+		igraph_vit_t childrenIter;
+		igraph_vs_adj(&children,parent,IGRAPH_OUT);
+		igraph_vit_create(graph,children,&childrenIter);
+		while(! IGRAPH_VIT_END(childrenIter)){ //for each of this task's chindren
+			igraph_integer_t child = IGRAPH_VIT_GET(childrenIter);
+			/*new ids are added only once, and only the first time it is found is used.
+			  Since this is effectively a breadth-first-search, the first time the task
+			  is found is the shortest distance from the parent. */
+			addIdWithoutDuplicates(&tasks2, child, distance);
+			IGRAPH_VIT_NEXT(childrenIter);
+		}
+		igraph_vit_destroy(&childrenIter);
+		igraph_vs_destroy(&children);
+		i++;
+	}
+	
+	std::vector<struct taskDistance> matches;
+	for(i = 0; i < tasks1.size(); i++){
+		for(int j = 0; i < tasks2.size(); j++){ //find matches between the two lists.
+			if ( (int) (tasks1.at(i).id) == (int) (tasks2.at(j).id)){
+				struct taskDistance match;
+				match.id = tasks1.at(i).id;
+				match.distance = tasks1.at(i).distance + tasks2.at(j).id;
+				matches.push_back(match);
+				j = tasks2.size(); //skip the rest of the loop now that its match was found.
+			}
+		}
+	}
+	
+	int minDistanceIndex = 0;
+	int minDistance = matches.at(0).distance;
+	for(int i = 1; i < matches.size(); i++){
+		if(matches.at(i).distance < minDistance){
+			minDistanceIndex = i;
+			minDistance = matches.at(i).distance;
+		}
+	}
+	std::string idOfMatch = VAS(graph,"id",matches.at(minDistanceIndex).id);
+	if( strcmp(idOfMatch.c_str(),"TEMP_SINK") == 0){
+		return INT_MAX;
+	}
+	else{
+		return minDistance;
+	}
+}
+/*Calculates the distances between all tasks given in the list. Tasks in the list should be at the same level. 
+  Returns a map of maps of those distances, such that the outer map is the first task's graph id allocated to a map of all other tasks,
+  such that the second vertex id maps to the distance between the outer id and the inner id. Example code: 
+  
+  int distance = outermap.at(node1ID).at(node2ID);
+  
+  Note: The graph goes along the list starting from the first element in the vector.
+  Therefore, the inner node IDs will ALWAYS be the nodes that ONLY come AFTER the outer node's position in the list.
+  
+  If you have a list of node ids (6, 3, 7, 8, 9)
+  then if you're finding all the distances for nodes from 3, you should call
+  int distance = outermap.at(3).at(7 or 8 or 9);
+  for nodes AFTER 3 in the list, and
+  int distance = outermap.at(6).at(3);
+  for nodes BEFORE 3 in the list, which in this example is only 6.
+  */
+std::map<igraph_integer_t,std::map<igraph_integer_t,int> * > * calculateDistance(igraph_t * graph, std::vector<igraph_integer_t> * tasks){
+	std::map<igraph_integer_t,std::map<igraph_integer_t,int> * > * distances = new std::map<igraph_integer_t,std::map<igraph_integer_t,int> * >;
+	for(int i = 0; i < tasks->size(); i++){
+		std::map<igraph_integer_t,int> * innerDistances = new std::map<igraph_integer_t,int>;
+		for(int j = i+1; j < tasks->size(); j++){
+			int dist = distanceBetween(graph, tasks->at(i),tasks->at(j));
+			innerDistances->insert(std::pair<igraph_integer_t,int>(tasks->at(j),dist));
+		}
+		distances->insert(std::pair<igraph_integer_t, std::map<igraph_integer_t,int> *>(tasks->at(i), innerDistances));
+	}
+	
+	return distances;
+	
 }
 
 igraph_integer_t findVertexID(igraph_t * graph, std::string id){

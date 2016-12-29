@@ -173,25 +173,18 @@ void test_with_small_hardcoded_graph() {
 	
 	igraph_t * import = getGlobalSettings()->original_graph;
 	//igraph_t * g = horizontalClustering(getGlobalSettings()->original_graph, 5, 0);
-	igraph_integer_t head = levelLabel(import);
-	calculateImpactFactors(import, (int) head + 1);
+	igraph_t * newGraph = horizontalClustering(import, 3);
 	
-	printNodesWithLevelsAndIF(import);
-	printEdges(import);
-	
-	std::vector<igraph_integer_t> * allTasks = new std::vector<igraph_integer_t>;
-
-	for(int i = 0; i < igraph_vcount(import); i++){
-		allTasks->push_back(i);
-	}
 	double total = 0;
 	for(int i = 0; i < igraph_vcount(import); i++){
 		total += VAN(import,"runtime",i);
 	}
-	std::cout << "Total runtime: " << total << "\n";
-	combineMulti(import, allTasks);
-	
-	printNodes(import);
+	double newTotal = 0;
+	for(int i = 0; i < igraph_vcount(newGraph); i++){
+		newTotal += VAN(newGraph,"runtime",i);
+	}
+	std::cout << total << "\n" << newTotal << "\n";
+	printNodes(newGraph);
 	
 	
 	/*
