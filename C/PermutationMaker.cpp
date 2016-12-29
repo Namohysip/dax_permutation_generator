@@ -909,7 +909,7 @@ int distanceBetween ( igraph_t * graph, igraph_integer_t node1, igraph_integer_t
 	//get a list of all tasks from the first task.
 	while(i < tasks1.size()){
 		igraph_integer_t parent = tasks1.at(i).id;
-		igraph_integer_t distance = tasks1.at(i).distance + 1;
+		int distance = tasks1.at(i).distance + 1;
 		igraph_vs_t children;
 		igraph_vit_t childrenIter;
 		igraph_vs_adj(&children,parent,IGRAPH_OUT);
@@ -953,17 +953,18 @@ int distanceBetween ( igraph_t * graph, igraph_integer_t node1, igraph_integer_t
 	
 	std::vector<struct taskDistance> matches;
 	for(i = 0; i < tasks1.size(); i++){
-		for(int j = 0; i < tasks2.size(); j++){ //find matches between the two lists.
+		for(int j = 0; j < tasks2.size(); j++){ //find matches between the two lists.
 			if ( (int) (tasks1.at(i).id) == (int) (tasks2.at(j).id)){
 				struct taskDistance match;
 				match.id = tasks1.at(i).id;
-				match.distance = tasks1.at(i).distance + tasks2.at(j).id;
+				match.distance = tasks1.at(i).distance + tasks2.at(j).distance;
 				matches.push_back(match);
 				j = tasks2.size(); //skip the rest of the loop now that its match was found.
 			}
 		}
 	}
 	
+	std::cout << "GOt here!\n";
 	int minDistanceIndex = 0;
 	int minDistance = matches.at(0).distance;
 	for(int i = 1; i < matches.size(); i++){
@@ -1006,7 +1007,6 @@ std::map<igraph_integer_t,std::map<igraph_integer_t,int> * > * calculateDistance
 		}
 		distances->insert(std::pair<igraph_integer_t, std::map<igraph_integer_t,int> *>(tasks->at(i), innerDistances));
 	}
-	
 	return distances;
 	
 }
