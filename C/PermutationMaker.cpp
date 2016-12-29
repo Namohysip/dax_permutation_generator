@@ -964,7 +964,6 @@ int distanceBetween ( igraph_t * graph, igraph_integer_t node1, igraph_integer_t
 		}
 	}
 	
-	std::cout << "GOt here!\n";
 	int minDistanceIndex = 0;
 	int minDistance = matches.at(0).distance;
 	for(int i = 1; i < matches.size(); i++){
