@@ -172,17 +172,18 @@ void test_with_small_hardcoded_graph() {
 	*/
 	
 	igraph_t * import = getGlobalSettings()->original_graph;
-	levelLabel(import);
-	std::vector<igraph_integer_t> * tasksAtLevel = getGraphsAtLevel(import, 1);
-	std::map<igraph_integer_t,std::map<igraph_integer_t,int> * > * distances = calculateDistance(import, tasksAtLevel);
-	std::cout << distances << "\n";
-	for(int i = 0; i < tasksAtLevel->size(); i++){
-		for (int j = i+1; j < tasksAtLevel->size(); j++){
-			int dist = distances->at(tasksAtLevel->at(i))->at(tasksAtLevel->at(j));
-			std::cout << "Distance from " << (int) tasksAtLevel->at(i) << " to " 
-			<< tasksAtLevel->at(j) << " is " << dist << "\n";
-		}
+	igraph_t * newGraph = horizontalClustering(import, 8);
+	double total = 0;
+	for(int i = 0; i < igraph_vcount(import); i++){
+		total += VAN(import,"runtime",i);
 	}
+	std::cout << total << "\n";
+	total = 0;
+	for(int i = 0; i < igraph_vcount(newGraph); i++){
+		total += VAN(newGraph,"runtime",i);
+	}
+	std::cout << total << "\n";
+	printNodes(newGraph);
 	
 	
 	/*

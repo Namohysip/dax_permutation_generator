@@ -711,6 +711,8 @@ bool mergeAChain(igraph_t * graph){
 	}
 	return false;
 }
+
+
 /*Begins by creating a copy of the source graph.
   All work is done on the new graph.
   Labels all levels.
@@ -786,6 +788,98 @@ igraph_t * horizontalClustering(igraph_t * graph, int perLevel){
 		delete(taskBins);
 	}
 	
+	return newGraph;
+}
+
+/*This differs from horizontalClustering only in that it follows the 
+  algorithm faithfully and includes the limit of how many tasks can be 
+  put into a single bin, i.e. only (task count in each level) / (tasks per level)
+  is allowed to be placed into each bin, with leftovers being added in afterward.
+  */
+igraph_t * horizontalClusteringRestrictedBins(igraph_t * graph, int perLevel){
+	//Make new graph and label their levels
+	igraph_t * newGraph = new igraph_t;
+	igraph_copy(newGraph, graph);
+	igraph_integer_t head = levelLabel(newGraph);
+	igraph_integer_t sink = (int) head + 1;
+	int depth = VAN(newGraph,"level",sink);
+	
+	/*Delete the head and sink nodes, as they are no longer needed*/
+	igraph_vs_t delSink;
+	igraph_vs_1(&delSink, sink);
+	igraph_delete_vertices(newGraph, delSink);
+	igraph_vs_destroy(&delSink);
+	
+	igraph_vs_t del;
+	igraph_vs_1(&del, head);
+	igraph_delete_vertices(newGraph, del);
+	igraph_vs_destroy(&del);
+	
+	//For each level, combine tasks such that for each given bin, the largest task is put into the 
+	//most empty bin, and so on, until all tasks have been placed in a bin.
+	for(int level = 1; level < depth; level++){
+		std::vector<igraph_integer_t> * tasksAtLevel = getGraphsAtLevel(newGraph, level);
+		std::vector<struct taskBin *> * taskBins = new std::vector<struct taskBin *>;
+		struct taskBin * smallestBin = NULL;
+		int maxBinSize = tasksAtLevel->size() / perLevel;
+		for(int i = 0; i < perLevel; i++){
+			taskBins->push_back(new struct taskBin);
+		}
+		smallestBin = taskBins->at(0);
+		//Keep merging tasks until nothing is left.
+		while(tasksAtLevel->size() > 0){
+			
+			double maxRuntime = VAN(newGraph,"runtime",tasksAtLevel->at(0));
+			int indexOfMax = 0; //needed for updating the vector list later
+			igraph_integer_t maxTask = tasksAtLevel->at(0);
+			
+			//find the largest task by runtime
+			for(int i = 0; i < tasksAtLevel->size(); i++){
+				double nextRuntime = VAN(newGraph,"runtime",tasksAtLevel->at(i));
+				if(nextRuntime > maxRuntime){
+					maxRuntime = nextRuntime;
+					indexOfMax = i;
+					maxTask = tasksAtLevel->at(i);
+				}
+			}
+			//place the largest task in the smallest bin
+			smallestBin->totalRuntime += maxRuntime;
+			smallestBin->ids.push_back(VAS(newGraph,"id",maxTask));
+			tasksAtLevel->erase(tasksAtLevel->begin() + indexOfMax);
+			//find new smallest bin
+			smallestBin = NULL;
+			while(smallestBin == NULL) {
+				for(int i = 0; i < taskBins->size(); i++){
+					if(smallestBin != NULL) {
+						if(smallestBin->totalRuntime > taskBins->at(i)->totalRuntime && taskBins->at(i)->ids.size() < maxBinSize){
+						smallestBin = taskBins->at(i);
+						}
+					}
+					else{
+						if(taskBins->at(i)->ids.size() < maxBinSize){
+							smallestBin = taskBins->at(i);
+						}
+					}
+				}
+				if(smallestBin == NULL){
+					maxBinSize++; //if all bins are full, increment the bin size in order to put in the leftovers
+				}
+			}
+			
+		}
+		//after the bins have all been properly clustered at that level...
+		for(int i = 0; i < taskBins->size(); i++){
+			combineMulti(newGraph, &(taskBins->at(i)->ids));
+		}
+		
+		//memory cleanup
+		for(int i = 0; i < taskBins->size(); i++){
+			delete(taskBins->at(i));
+		}
+		delete(tasksAtLevel);
+		delete(taskBins);
+	}
+
 	return newGraph;
 }
 
