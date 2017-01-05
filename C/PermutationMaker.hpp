@@ -18,6 +18,7 @@ struct GlobalSettings {
 struct taskBin {
 	double totalRuntime;
 	std::vector<std::string> ids;
+	double lastIFAdded = -1;
 };
 
 /*Used to keep track of the distance from a graph. */
@@ -36,8 +37,8 @@ std::vector<std::string> * exhaustivePermHashStart(igraph_t * graph);
 std::vector<igraph_t *> * randomizedPerm(igraph_t * graph);
 int RandomizedPermEvenSpread(igraph_t * graph);
 bool mergeAChain(igraph_t * graph);
-igraph_t * horizontalClustering(igraph_t * graph, int perLevel);
-igraph_t * horizontalClusteringRestrictedBins(igraph_t * graph, int perLevel);
+igraph_t * horizontalClustering(igraph_t * graph, int perLevel, bool noBinRestrictions);
+igraph_t * impactFactorClustering(igraph_t * graph, int perLevel, bool noBinRestrictions);
 std::vector<igraph_integer_t> * getGraphsAtLevel(igraph_t * graph, int level);
 igraph_integer_t levelLabel(igraph_t * graph);
 void test_with_small_hardcoded_graph();

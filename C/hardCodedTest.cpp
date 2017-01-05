@@ -172,7 +172,7 @@ void test_with_small_hardcoded_graph() {
 	*/
 	
 	igraph_t * import = getGlobalSettings()->original_graph;
-	igraph_t * newGraph = horizontalClustering(import, 8);
+	igraph_t * newGraph = impactFactorClustering(import, 3, true);
 	double total = 0;
 	for(int i = 0; i < igraph_vcount(import); i++){
 		total += VAN(import,"runtime",i);
@@ -183,6 +183,7 @@ void test_with_small_hardcoded_graph() {
 		total += VAN(newGraph,"runtime",i);
 	}
 	std::cout << total << "\n";
+	std::cout << igraph_vcount(import);
 	printNodes(newGraph);
 	
 	
