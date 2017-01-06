@@ -1141,13 +1141,110 @@ std::map<igraph_integer_t,std::map<igraph_integer_t,int> * > * calculateDistance
 	std::map<igraph_integer_t,std::map<igraph_integer_t,int> * > * distances = new std::map<igraph_integer_t,std::map<igraph_integer_t,int> * >;
 	for(int i = 0; i < tasks->size(); i++){
 		std::map<igraph_integer_t,int> * innerDistances = new std::map<igraph_integer_t,int>;
-		for(int j = i+1; j < tasks->size(); j++){
+		for(int j = 0; j < tasks->size(); j++){
+			if(i != j) {
 			int dist = distanceBetween(graph, tasks->at(i),tasks->at(j));
 			innerDistances->insert(std::pair<igraph_integer_t,int>(tasks->at(j),dist));
+			}
 		}
 		distances->insert(std::pair<igraph_integer_t, std::map<igraph_integer_t,int> *>(tasks->at(i), innerDistances));
 	}
 	return distances;
+	
+}
+
+
+igraph_t * distanceBalancedClustering(igraph_t * graph, int perLevel, bool noBinRestrictions){
+	igraph_t * newGraph = new igraph_t;
+	igraph_copy(newGraph, graph);
+	igraph_integer_t head = levelLabel(newGraph);
+	igraph_integer_t sink = head + 1;
+	int depth = VAN(newGraph,"level",sink);
+	
+	/*Delete the head node, as it is no longer needed*/
+	igraph_vs_t del;
+	igraph_vs_1(&del, head);
+	igraph_delete_vertices(newGraph, del);
+	igraph_vs_destroy(&del);
+	
+	//For each level, combine tasks such that for each given bin, the largest task is put into the 
+	//most empty bin, and so on, until all tasks have been placed in a bin.
+	for(int level = 1; level < depth; level++){
+		std::vector<igraph_integer_t> * tasksAtLevel = getGraphsAtLevel(newGraph, level);
+		std::vector<struct taskBin *> * taskBins = new std::vector<struct taskBin *>;
+		struct taskBin * smallestBin = NULL;
+		int maxBinSize = tasksAtLevel->size() / perLevel;
+		std::map<igraph_integer_t,std::map<igraph_integer_t,int> * > * taskDistances = calculateDistance(newGraph, tasksAtLevel);
+		std::cout << "Finished calculating distances for level " << level << "\n";
+		for(int i = 0; i < perLevel; i++){
+			taskBins->push_back(new struct taskBin);
+		}
+		smallestBin = taskBins->at(0);
+		//Keep merging tasks until nothing is left.
+		while(tasksAtLevel->size() > 0){
+			
+			double maxRuntime = VAN(newGraph,"runtime",tasksAtLevel->at(0));
+			int indexOfMax = 0; //needed for updating the vector list later
+			int distanceOfMax = INT_MAX;
+			igraph_integer_t maxTask = tasksAtLevel->at(0);
+			
+			//find the largest task by runtime with the shortest distance
+			for(int i = 0; i < tasksAtLevel->size(); i++){
+				int dist = -1;
+				if(smallestBin->lastAdded >= 0){
+					dist = taskDistances->at(smallestBin->lastAdded)->at(tasksAtLevel->at(i));
+				}
+				double nextRuntime = VAN(newGraph,"runtime",tasksAtLevel->at(i));
+				if(nextRuntime > maxRuntime && (dist == -1 || dist <= distanceOfMax)){
+					maxRuntime = nextRuntime;
+					indexOfMax = i;
+					distanceOfMax = dist;
+					maxTask = tasksAtLevel->at(i);
+				}
+				
+			}
+			//place the task that has the shortest distance from the task bin, and the largest runtime of those with the shortest distance, into the bin
+			smallestBin->totalRuntime += maxRuntime;
+			smallestBin->ids.push_back(VAS(newGraph,"id",maxTask));
+			smallestBin->lastAdded = maxTask;
+			tasksAtLevel->erase(tasksAtLevel->begin() + indexOfMax);
+			
+			//find new smallest bin
+			smallestBin = NULL;
+			while(smallestBin == NULL) {
+				for(int i = 0; i < taskBins->size(); i++){
+					if(smallestBin != NULL) {
+						if(smallestBin->totalRuntime > taskBins->at(i)->totalRuntime && (taskBins->at(i)->ids.size() < maxBinSize || noBinRestrictions)){
+						smallestBin = taskBins->at(i);
+						}
+					}
+					else{
+						if(taskBins->at(i)->ids.size() < maxBinSize){
+							smallestBin = taskBins->at(i);
+						}
+					}
+				}
+				if(smallestBin == NULL){
+					maxBinSize++; //if all bins are full, increment the bin size in order to put in the leftovers
+				}
+			}
+			
+		}
+		//after the bins have all been properly clustered at that level...
+		for(int i = 0; i < taskBins->size(); i++){
+			combineMulti(newGraph, &(taskBins->at(i)->ids));
+		}
+		
+		//memory cleanup
+		for(int i = 0; i < taskBins->size(); i++){
+			delete(taskBins->at(i));
+		}
+		delete(tasksAtLevel);
+		delete(taskBins);
+		std::cout << "Finished clustering level " << level << "\n";
+	}
+
+	return newGraph;
 	
 }
 

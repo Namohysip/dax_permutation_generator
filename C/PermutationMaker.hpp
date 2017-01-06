@@ -1,5 +1,4 @@
 #include <string>
-
 #ifndef PERMUTATIONMAKER_H
 #define PERMUTATIONMAKER_H
 
@@ -19,6 +18,7 @@ struct taskBin {
 	double totalRuntime;
 	std::vector<std::string> ids;
 	double lastIFAdded = -1;
+	igraph_integer_t lastAdded = -1;
 };
 
 /*Used to keep track of the distance from a graph. */
@@ -39,6 +39,7 @@ int RandomizedPermEvenSpread(igraph_t * graph);
 bool mergeAChain(igraph_t * graph);
 igraph_t * horizontalClustering(igraph_t * graph, int perLevel, bool noBinRestrictions);
 igraph_t * impactFactorClustering(igraph_t * graph, int perLevel, bool noBinRestrictions);
+igraph_t * distanceBalancedClustering(igraph_t * graph, int perLevel, bool noBinRestrictions);
 std::vector<igraph_integer_t> * getGraphsAtLevel(igraph_t * graph, int level);
 igraph_integer_t levelLabel(igraph_t * graph);
 void test_with_small_hardcoded_graph();
