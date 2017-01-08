@@ -1174,8 +1174,9 @@ igraph_t * distanceBalancedClustering(igraph_t * graph, int perLevel, bool noBin
 		std::vector<struct taskBin *> * taskBins = new std::vector<struct taskBin *>;
 		struct taskBin * smallestBin = NULL;
 		int maxBinSize = tasksAtLevel->size() / perLevel;
+		std::cout << "Calculating distances for level " << level << "\n";
 		std::map<igraph_integer_t,std::map<igraph_integer_t,int> * > * taskDistances = calculateDistance(newGraph, tasksAtLevel);
-		std::cout << "Finished calculating distances for level " << level << "\n";
+		std::cout << "Clustering tasks for level " << level << "\n";
 		for(int i = 0; i < perLevel; i++){
 			taskBins->push_back(new struct taskBin);
 		}
@@ -1241,9 +1242,13 @@ igraph_t * distanceBalancedClustering(igraph_t * graph, int perLevel, bool noBin
 		}
 		delete(tasksAtLevel);
 		delete(taskBins);
-		std::cout << "Finished clustering level " << level << "\n";
 	}
 
+	igraph_vs_t delSink;
+	igraph_vs_1(&delSink, findVertexID(newGraph, "TEMP_SINK"));
+	igraph_delete_vertices(newGraph, delSink);
+	igraph_vs_destroy(&delSink);
+	
 	return newGraph;
 	
 }

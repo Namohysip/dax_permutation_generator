@@ -153,7 +153,7 @@ void test_with_small_hardcoded_graph() {
 	std::cout << std::to_string(total / randomized->size()) << "\n"; 
 	*/
 	Workflow * workflow = new Workflow("some_workflow");
-	if (workflow->load_from_xml("workflows/CyberShake_1.xml")) {
+	if (workflow->load_from_xml("workflows/1000genome.xml")) {
 	  exit(1);
 	} 
 	/*
@@ -183,7 +183,6 @@ void test_with_small_hardcoded_graph() {
 		total += VAN(newGraph,"runtime",i);
 	}
 	std::cout << total << "\n";
-	std::cout << igraph_vcount(import);
 	printNodes(newGraph);
 	
 	
