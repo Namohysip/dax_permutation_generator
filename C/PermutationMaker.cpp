@@ -9,6 +9,7 @@
 #include <queue>
 #include <climits>
 #include<map>
+#include<sstream>
 
 #include "sha256.hpp"
 #include "DAGUtilities.hpp"
@@ -811,6 +812,7 @@ igraph_t * horizontalClustering(igraph_t * graph, int perLevel, bool noBinRestri
 		std::cout << "Finished clustering level " << level << "\n";
 	}
 
+	outputDAXStr(dagToDAXStr(newGraph));
 	return newGraph;
 }
 
@@ -1017,7 +1019,8 @@ igraph_t * impactFactorClustering(igraph_t * graph, int perLevel, bool noBinRest
 		delete(taskBins);
 		std::cout << "Finished clustering level " << level << "\n";
 	}
-
+	
+	outputDAXStr(dagToDAXStr(newGraph));
 	return newGraph;
 	
 }
@@ -1249,6 +1252,7 @@ igraph_t * distanceBalancedClustering(igraph_t * graph, int perLevel, bool noBin
 	igraph_delete_vertices(newGraph, delSink);
 	igraph_vs_destroy(&delSink);
 	
+	outputDAXStr(dagToDAXStr(newGraph));
 	return newGraph;
 	
 }
@@ -1260,4 +1264,33 @@ igraph_integer_t findVertexID(igraph_t * graph, std::string id){
 		}
 	}
 	return -1;
+}
+/*Splitting a string, taken from Stackoverflow */
+void split(const std::string &s, char delim, std::vector<std::string>  * elems) {
+    std::stringstream ss;
+    ss.str(s);
+    std::string item;
+    while (std::getline(ss, item, delim)) {
+        elems->push_back(item);
+    }
+}
+/*splitting a string, taken and modified from stackoverflow */
+std::vector<std::string>  * split(const std::string &s, char delim) {
+    std::vector<std::string> * elems = new std::vector<std::string>;
+    split(s, delim, elems);
+    return elems;
+}
+
+
+igraph_t * customClustering(igraph_t * graph, std::string idList){
+	std::vector<std::string> * combinations = split(idList, ':');
+	igraph_t * newGraph = new igraph_t;
+	igraph_copy(newGraph, graph);
+	for(int i = 0; i < combinations->size(); i++){
+		std::vector<std::string> * pairs = split(combinations->at(i), ',');
+		combineMulti(newGraph,pairs);
+	}
+	
+	outputDAXStr(dagToDAXStr(newGraph));
+	return newGraph;
 }

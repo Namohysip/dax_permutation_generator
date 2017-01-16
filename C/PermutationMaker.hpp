@@ -44,6 +44,7 @@ std::vector<igraph_integer_t> * getGraphsAtLevel(igraph_t * graph, int level);
 igraph_integer_t levelLabel(igraph_t * graph);
 void test_with_small_hardcoded_graph();
 igraph_integer_t findVertexID(igraph_t * graph, std::string id);
+igraph_t * customClustering(igraph_t * graph, std::string idList);
 
 std::map<igraph_integer_t,std::map<igraph_integer_t,int> * > * calculateDistance(igraph_t * graph, std::vector<igraph_integer_t> * tasks);
 void calculateImpactFactors(igraph_t * graph, igraph_integer_t sink);

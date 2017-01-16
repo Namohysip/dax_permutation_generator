@@ -28,7 +28,10 @@ struct MainArguments
 	int min_size = 1;
 	bool hash = false;
 	bool chaining = false;
-
+	bool freeBinCapacity = true;
+	int tasksPerLevel = 1;
+	std::string custom;
+	
 	bool abort = false;  	  // set to true while parsing argument if error
 	std::string abortReason;  // Error message to print
 
@@ -45,6 +48,9 @@ enum {
 	MIN_SIZE,
 	ATTEMPT_CAP,
 	CHAINMERGE,
+	TASKSPERLEVEL,
+	LIMITEDBINS,
+	CUSTOM
 	
 };
 /**
@@ -73,6 +79,11 @@ int parse_opt(int key, char *arg, struct argp_state *state)
 		main_args->chaining = true;
 		break;
 	}
+	case LIMITEDBINS:
+	{
+		main_args->freeBinCapacity = false;
+		break;
+	}
     case INPUT:
     {
         if (access(((std::string) arg).c_str(), R_OK) == -1)
@@ -89,17 +100,14 @@ int parse_opt(int key, char *arg, struct argp_state *state)
     }
     case OUTPUT_PREFIX:
     {
-		if(true){
-			main_args->output_prefix = std::string(arg);
-			std::cout << std::string(arg);
-		}
-		else {
-			main_args->abort = true;
-			main_args->abortReason += "\n  invalid output file base name: '" +
-									  std::string(arg) + "' is invalid or directory does not exist.";
-		}
+		main_args->output_prefix = std::string(arg);
         break;
     }
+	case CUSTOM:
+	{
+		main_args->custom = std::string(arg);
+		break;
+	}
     case TIMEOUT:
     {
 	if ((sscanf(arg, "%lf",&(main_args->timeout)) != 1) ||
@@ -126,7 +134,12 @@ int parse_opt(int key, char *arg, struct argp_state *state)
 	if ( 
 	    (main_args->method != "exhaustive") &&
 	    (main_args->method != "random") && 
-	    (main_args->method != "randomLimited")) {
+	    (main_args->method != "randomLimited") &&
+	    (main_args->method != "runtimeBalance") &&
+	    (main_args->method != "impactFactorBalance") &&
+	    (main_args->method != "distanceBalance") &&
+	    (main_args->method != "custom") 
+		) {
 	  main_args->abort = true;
 	  main_args->abortReason += "\n  invalid method argument '" + std::string(arg) + "'";
         }
@@ -147,6 +160,15 @@ int parse_opt(int key, char *arg, struct argp_state *state)
 			(main_args->attempt_cap < 1)){
 				main_args->abort = true;
 				main_args->abortReason += "\n invalid attempt cap value '" + std::string(arg) + "'";
+			}
+		break;
+	}
+	case TASKSPERLEVEL:
+	{
+		if ((sscanf(arg,"%d",&(main_args->tasksPerLevel)) != 1) ||
+			(main_args->tasksPerLevel < 1)){
+				main_args->abort = true;
+				main_args->abortReason += "\n invalid minimum size value '" + std::string(arg) + "'";
 			}
 		break;
 	}
@@ -171,7 +193,16 @@ bool parse_main_args(int argc, char * argv[], MainArguments & main_args)
 						"Unlike exhaustive, random will ALWAYS use a timeout and max-permutations value.\n\n" 
 						"randomLimited: A specialized version of a randomized clustering designed for a more evenly-distributed set of clusterings, from fine grained to coarse grained. Uses a specialized option, " 
 						"attempt-cap, which is how many times each iteration will attempt to make a new clustering using one of the graphs. If the cap is reached, that graph will no longer be used, and there will be" 
-						" fewer clustering options for the more coarse-grained clusterings. Also, max-permutations is used instead as how many clusterings per size instead.";
+						" fewer clustering options for the more coarse-grained clusterings. Also, max-permutations is used instead as how many clusterings per size instead.\n\n"
+						"runtimeBalance: A method of clustering from other literature, where tasks at the same level of a graph are clustered based on balancing their runtime, so each clustered task is as close to"
+						" the same as possible using a greedy bin-packing algorithm. For this and other 'balance' methods, --limited-capacity-bins can be used to make each bin have the same number of tasks, +/- 1.\n\n"
+						"impactFactorBalance: Another horizontal clustering method that clusters tasks based on their impact factor. Clusters first based on the 'impact factor,' based on how much influence or 'weight' the "
+						"task has on the graph, based on its dependencies. It then clusters, based on identical impact factors, by runtime.\n\n"
+						"distanceBalance: Another horizontal clustering method that clusters tasks on the same level based on how 'close' their most common successor is. Then, based on the tasks that are closest together, "
+						"they are then combined by runtime.\n\n"
+						"custom: Given a specific graph, combine in a certain way based on parameters passed on with the --custom argument. The syntax uses the task ids as the tasks to combine. Every set of ids separated by "
+						"commas , will be combined, such that the first task id remains, with the others merged in. Things separated by colons :  are individual clustering assignments. For example, taskA,taskB,taskC:taskD,taskE "
+						"is a command to combine task B and C into A, and to combine E into D.\n\n";
     struct argp_option options[] = 
     {
         {"dax", INPUT, "FILENAME", 0, "The input DAX file with the original workflow (string, required)", 0},
@@ -181,9 +212,13 @@ bool parse_main_args(int argc, char * argv[], MainArguments & main_args)
         {"method", METHOD, "NAME", 0, method_description.c_str(), 0},
         {"test", TEST, 0, 0, "Only run a hard-coded test for iGraph", 0},
 		{"hash", HASH, 0, 0, "Use hashing if applicable. Silently does nothing if hashing is unavailable for the given method.", 0},
+		{"limited-capacity-bins", LIMITEDBINS,0,0,"use this flag if you want horizontally clustered tasks on the same level to have the same number of tasks, rergardless of total runtime."},
 		{"min-size", MIN_SIZE,"min_size",0,"the minimum size for workflows to be output. Must be above 0. Default is 1."},
 		{"attempt-cap",ATTEMPT_CAP,"attempt_cap",0,"the maximum number of attempts to make a legal graph when done randomly."},
 		{"chain-merge", CHAINMERGE,0,0,"use this if you want to always merge single-parent-single-child vertices"},
+		{"tasks-per-level", TASKSPERLEVEL,"TASKSPERLEVEL",0,"use this for the horizontal clustering options. It is the maximum number of tasks wanted at each level."},
+		{"custom", CUSTOM,"CUSTOMSTRING",0,"use this in conjunction with the 'custom' method. For syntax, see the 'custom' description under methods."},
+		
 		{0, '\0', 0, 0, 0, 0} // The options array must be NULL-terminated
     };
 
@@ -198,17 +233,17 @@ bool parse_main_args(int argc, char * argv[], MainArguments & main_args)
       // We need a DAX as input
       if (main_args.dax_filename == "") {
         main_args.abort = true;
-        main_args.abortReason += "\n  missing DAX file argument (-d)";
+        main_args.abortReason += "\n  missing DAX file argument (--dax)";
       }
       // We need an output prefix 
       if (main_args.output_prefix == "") {
         main_args.abort = true;
-        main_args.abortReason += "\n  missing output prefix argument (-o)";
+        main_args.abortReason += "\n  missing output prefix argument (--output)";
       }
       // We need a method
       if (main_args.method == "") {
         main_args.abort = true;
-        main_args.abortReason += "\n  missing method argument (-m)";
+        main_args.abortReason += "\n  missing method argument (--method)";
       }
 
     }
@@ -229,7 +264,6 @@ int main (int argc, char* argv[]) {
         if (!parse_main_args(argc, argv, main_args))
             return 1;
 
-        std::string options = "exhaustive random randomLimited";
 	igraph_i_set_attribute_table(&igraph_cattribute_table); //ALWAYS HAVE THIS. Enables attributes.
 
 	if (main_args.just_a_test) {
@@ -245,6 +279,9 @@ int main (int argc, char* argv[]) {
 	int max_permutations = main_args.max_permutations;
 	int attempt_cap = main_args.attempt_cap;
 	bool hashed = main_args.hash;
+	bool freeBinCapacity = main_args.freeBinCapacity;
+	int tasksPerLevel = main_args.tasksPerLevel;
+	std::string custom = main_args.custom;
 	
 	/* Load the workflow from the DAX file*/
 	Workflow * workflow = new Workflow("some_workflow");
@@ -283,9 +320,23 @@ int main (int argc, char* argv[]) {
 	else if(method == "randomLimited"){
 		std::cout << "Total permutations made: " << RandomizedPermEvenSpread(getGlobalSettings()->original_graph) << "\n";
 	}
+	else if(method == "runtimeBalance"){
+		horizontalClustering(getGlobalSettings()->original_graph, tasksPerLevel, freeBinCapacity);
+		std::cout << "Done!\n";
+	}
+	else if(method == "impactFactorBalance"){
+		impactFactorClustering(getGlobalSettings()->original_graph, tasksPerLevel, freeBinCapacity);
+		std::cout << "Done!\n";
+	}else if(method == "distanceBalance"){
+		distanceBalancedClustering(getGlobalSettings()->original_graph, tasksPerLevel, freeBinCapacity);
+		std::cout << "Done!\n";
+	}
+	else if (method == "custom"){
+		customClustering(getGlobalSettings()->original_graph, custom);
+		std::cout << "Done!\n";
+	}
 	else {
 		std::cerr << "This type of clustering option is not supported.\n";
-		std::cerr << "Current options for clustering: " << options << "\n";
 	}
 	exit(0);
 }
