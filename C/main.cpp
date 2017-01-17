@@ -49,7 +49,7 @@ enum {
 	ATTEMPT_CAP,
 	CHAINMERGE,
 	TASKSPERLEVEL,
-	LIMITEDBINS,
+	EVENNUMTASKSPERBIN,
 	CUSTOM
 	
 };
@@ -79,7 +79,7 @@ int parse_opt(int key, char *arg, struct argp_state *state)
 		main_args->chaining = true;
 		break;
 	}
-	case LIMITEDBINS:
+	case EVENNUMTASKSPERBIN:
 	{
 		main_args->freeBinCapacity = false;
 		break;
@@ -195,7 +195,7 @@ bool parse_main_args(int argc, char * argv[], MainArguments & main_args)
 						"attempt-cap, which is how many times each iteration will attempt to make a new clustering using one of the graphs. If the cap is reached, that graph will no longer be used, and there will be" 
 						" fewer clustering options for the more coarse-grained clusterings. Also, max-permutations is used instead as how many clusterings per size instead.\n\n"
 						"runtimeBalance: A method of clustering from other literature, where tasks at the same level of a graph are clustered based on balancing their runtime, so each clustered task is as close to"
-						" the same as possible using a greedy bin-packing algorithm. For this and other 'balance' methods, --limited-capacity-bins can be used to make each bin have the same number of tasks, +/- 1.\n\n"
+						" the same as possible using a greedy bin-packing algorithm. For this and other 'balance' methods, --even-numtasks-per-bin can be used to make each bin have the same number of tasks, +/- 1.\n\n"
 						"impactFactorBalance: Another horizontal clustering method that clusters tasks based on their impact factor. Clusters first based on the 'impact factor,' based on how much influence or 'weight' the "
 						"task has on the graph, based on its dependencies. It then clusters, based on identical impact factors, by runtime.\n\n"
 						"distanceBalance: Another horizontal clustering method that clusters tasks on the same level based on how 'close' their most common successor is. Then, based on the tasks that are closest together, "
@@ -212,7 +212,7 @@ bool parse_main_args(int argc, char * argv[], MainArguments & main_args)
         {"method", METHOD, "NAME", 0, method_description.c_str(), 0},
         {"test", TEST, 0, 0, "Only run a hard-coded test for iGraph", 0},
 		{"hash", HASH, 0, 0, "Use hashing if applicable. Silently does nothing if hashing is unavailable for the given method.", 0},
-		{"limited-capacity-bins", LIMITEDBINS,0,0,"use this flag if you want horizontally clustered tasks on the same level to have the same number of tasks, rergardless of total runtime."},
+		{"even-numtasks-per-bin", EVENNUMTASKSPERBIN,0,0,"use this flag if you want horizontally clustered tasks on the same level to have the same number of tasks, rergardless of total runtime."},
 		{"min-size", MIN_SIZE,"min_size",0,"the minimum size for workflows to be output. Must be above 0. Default is 1."},
 		{"attempt-cap",ATTEMPT_CAP,"attempt_cap",0,"the maximum number of attempts to make a legal graph when done randomly."},
 		{"chain-merge", CHAINMERGE,0,0,"use this if you want to always merge single-parent-single-child vertices"},
