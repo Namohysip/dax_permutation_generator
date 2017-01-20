@@ -291,7 +291,7 @@ bool exhaustivePerm(std::vector<igraph_t *> * graphs, igraph_t * graph, clock_t 
 			igraph_bool_t legal;
 			igraph_is_dag(newGraph, &legal);
 			if((bool) legal){
-				if(config.mergeChains){ //auto-combine chains
+				if(config.mergeChainsBefore || config.mergeChainsAfter){ //auto-combine chains
 					while(mergeAChain(newGraph));
 				}
 				if(addWithoutDuplicates(graphs, newGraph)){
@@ -319,7 +319,7 @@ std::vector<igraph_t *> * exhaustivePermStart(igraph_t * graph){
 	graphs->push_back(graph);
 	dagToDAX(graph);
 	clock_t start = clock();
-	if(config.mergeChains){
+	if(config.mergeChainsBefore || config.mergeChainsAfter){
 		igraph_t * newGraph = new igraph_t;
 		igraph_copy(newGraph, graph);
 		while(mergeAChain(newGraph));
@@ -448,7 +448,7 @@ bool exhaustivePermHash(std::vector<std::string> * graphs, igraph_t * graph, clo
 			igraph_bool_t legal;
 			igraph_is_dag(newGraph, &legal);
 			if((bool) legal){
-				if(config.mergeChains){ //auto-combine chains
+				if(config.mergeChainsBefore || config.mergeChainsAfter){ //auto-combine chains
 					while(mergeAChain(newGraph));
 				}
 				if(addHashAndOutput(graphs, newGraph)){
@@ -471,7 +471,7 @@ std::vector<std::string> * exhaustivePermHashStart(igraph_t * graph){
 	std::vector<std::string> * graphs = new std::vector<std::string>;
 	addHashAndOutput(graphs, graph);
 	clock_t start = clock();
-	if(config.mergeChains){
+	if(config.mergeChainsBefore || config.mergeChainsAfter){
 		igraph_t * newGraph = new igraph_t;
 		igraph_copy(newGraph, graph);
 		while(mergeAChain(newGraph));
@@ -731,6 +731,12 @@ igraph_t * horizontalClustering(igraph_t * graph, int perLevel, bool noBinRestri
 	//Make new graph and label their levels
 	igraph_t * newGraph = new igraph_t;
 	igraph_copy(newGraph, graph);
+	
+	
+	if(config.mergeChainsBefore){ //auto-combine chains before any other changes, if desired
+		while(mergeAChain(newGraph));
+	}
+	
 	igraph_integer_t head = levelLabel(newGraph);
 	igraph_integer_t sink = (int) head + 1;
 	int depth = VAN(newGraph,"level",sink);
@@ -745,7 +751,6 @@ igraph_t * horizontalClustering(igraph_t * graph, int perLevel, bool noBinRestri
 	igraph_vs_1(&del, head);
 	igraph_delete_vertices(newGraph, del);
 	igraph_vs_destroy(&del);
-	
 	//For each level, combine tasks such that for each given bin, the largest task is put into the 
 	//most empty bin, and so on, until all tasks have been placed in a bin.
 	for(int level = 1; level < depth; level++){
@@ -811,7 +816,11 @@ igraph_t * horizontalClustering(igraph_t * graph, int perLevel, bool noBinRestri
 		delete(taskBins);
 		std::cout << "Finished clustering level " << level << "\n";
 	}
-
+	
+	if(config.mergeChainsAfter){ //auto-combine chains after all other changes, if desired
+		while(mergeAChain(newGraph));
+	}
+	
 	outputDAXStr(dagToDAXStr(newGraph));
 	return newGraph;
 }
@@ -910,6 +919,11 @@ void calculateImpactFactors(igraph_t * graph, igraph_integer_t sink){
 igraph_t * impactFactorClustering(igraph_t * graph, int perLevel, bool noBinRestrictions){
 	igraph_t * newGraph = new igraph_t;
 	igraph_copy(newGraph, graph);
+	
+	if(config.mergeChainsBefore){ //auto-combine chains before any other changes, if desired
+		while(mergeAChain(newGraph));
+	}
+	
 	igraph_integer_t head = levelLabel(newGraph);
 	igraph_integer_t sink = (int) head + 1;
 	int depth = VAN(newGraph,"level",sink);
@@ -1018,6 +1032,10 @@ igraph_t * impactFactorClustering(igraph_t * graph, int perLevel, bool noBinRest
 		delete(tasksAtLevel);
 		delete(taskBins);
 		std::cout << "Finished clustering level " << level << "\n";
+	}
+	
+	if(config.mergeChainsAfter){ //auto-combine chains after all other changes, if desired
+		while(mergeAChain(newGraph));
 	}
 	
 	outputDAXStr(dagToDAXStr(newGraph));
@@ -1160,6 +1178,11 @@ std::map<igraph_integer_t,std::map<igraph_integer_t,int> * > * calculateDistance
 igraph_t * distanceBalancedClustering(igraph_t * graph, int perLevel, bool noBinRestrictions){
 	igraph_t * newGraph = new igraph_t;
 	igraph_copy(newGraph, graph);
+	
+	if(config.mergeChainsBefore){ //auto-combine chains before any other changes, if desired
+		while(mergeAChain(newGraph));
+	}
+	
 	igraph_integer_t head = levelLabel(newGraph);
 	igraph_integer_t sink = head + 1;
 	int depth = VAN(newGraph,"level",sink);
@@ -1252,6 +1275,10 @@ igraph_t * distanceBalancedClustering(igraph_t * graph, int perLevel, bool noBin
 	igraph_delete_vertices(newGraph, delSink);
 	igraph_vs_destroy(&delSink);
 	
+	if(config.mergeChainsAfter){ //auto-combine chains after all other changes, if desired
+		while(mergeAChain(newGraph));
+	}
+	
 	outputDAXStr(dagToDAXStr(newGraph));
 	return newGraph;
 	
@@ -1282,6 +1309,17 @@ std::vector<std::string>  * split(const std::string &s, char delim) {
 }
 
 
+igraph_t * noOp(igraph_t * graph){
+	igraph_t * newGraph = new igraph_t;
+	igraph_copy(newGraph, graph);
+	
+	if(config.mergeChainsAfter || config.mergeChainsBefore){ //auto-combine chains after all other changes, if desired
+		while(mergeAChain(newGraph));
+	}
+	
+	outputDAXStr(dagToDAXStr(newGraph));
+	return newGraph;
+}
 igraph_t * customClustering(igraph_t * graph, std::string idList){
 	std::vector<std::string> * combinations = split(idList, ':');
 	igraph_t * newGraph = new igraph_t;

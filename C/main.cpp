@@ -21,13 +21,14 @@ struct MainArguments
 	bool just_a_test = false; 
 	std::string dax_filename;
 	std::string output_prefix;
-	std::string method;	
+	std::string method = "";
 	double timeout = 0.0;
 	int max_permutations = 0;
 	int attempt_cap = 20;
 	int min_size = 1;
 	bool hash = false;
-	bool chaining = false;
+	bool chainingBefore = false;
+	bool chainingAfter = false;
 	bool freeBinCapacity = true;
 	int tasksPerLevel = 1;
 	std::string custom;
@@ -47,7 +48,8 @@ enum {
 	METHOD,
 	MIN_SIZE,
 	ATTEMPT_CAP,
-	CHAINMERGE,
+	CHAINMERGEBEFORE,
+	CHAINMERGEAFTER,
 	TASKSPERLEVEL,
 	EVENNUMTASKSPERBIN,
 	CUSTOM
@@ -74,9 +76,14 @@ int parse_opt(int key, char *arg, struct argp_state *state)
 		main_args->hash = true;
 		break;
 	}
-	case CHAINMERGE:
+	case CHAINMERGEBEFORE:
 	{
-		main_args->chaining = true;
+		main_args->chainingBefore = true;
+		break;
+	}
+	case CHAINMERGEAFTER:
+	{
+		main_args->chainingAfter = true;
 		break;
 	}
 	case EVENNUMTASKSPERBIN:
@@ -186,9 +193,9 @@ int parse_opt(int key, char *arg, struct argp_state *state)
  */
 bool parse_main_args(int argc, char * argv[], MainArguments & main_args)
 {
-	std::string method_description = "\nWorkflow generation  method. String, exactly one required from the following: \n" 
+	std::string method_description = "\nWorkflow generation  method. If no method is given, it does nothing to the graph, aside from other modifying flags sent in. String, exactly one required from the following: \n" 
 						"\nexhaustive: Will exhaustively find all possible clustering options for the input workflow. " 
-						"Can me modified with hash, timeout, max-permutations, min-size, and chain-merge options for better performance or more specialized output.\n\n" 
+						"Can me modified with hash, timeout, max-permutations, min-size, and either chain-merge options for better performance or more specialized output.\n\n" 
 						"random: will randomly combine two tasks until time runs out or a number of clustering options were generated. --hash will have no effect. " 
 						"Unlike exhaustive, random will ALWAYS use a timeout and max-permutations value.\n\n" 
 						"randomLimited: A specialized version of a randomized clustering designed for a more evenly-distributed set of clusterings, from fine grained to coarse grained. Uses a specialized option, " 
@@ -215,7 +222,8 @@ bool parse_main_args(int argc, char * argv[], MainArguments & main_args)
 		{"even-numtasks-per-bin", EVENNUMTASKSPERBIN,0,0,"use this flag if you want horizontally clustered tasks on the same level to have the same number of tasks, rergardless of total runtime."},
 		{"min-size", MIN_SIZE,"min_size",0,"the minimum size for workflows to be output. Must be above 0. Default is 1."},
 		{"attempt-cap",ATTEMPT_CAP,"attempt_cap",0,"the maximum number of attempts to make a legal graph when done randomly."},
-		{"chain-merge", CHAINMERGE,0,0,"use this if you want to always merge single-parent-single-child vertices"},
+		{"chain-merge-before", CHAINMERGEBEFORE,0,0,"use this if you want to always merge single-parent-single-child vertices before any other operation, for methods that output only a single graph. Identical to chain-merge-after if on multi-graph outputs."},
+		{"chain-merge-after", CHAINMERGEAFTER,0,0,"use this if you want to always merge single-parent-single-child vertices after all other operations, for methods that output only a single graph. Identical to chain-merge-before if on multi-graph outputs."},
 		{"tasks-per-level", TASKSPERLEVEL,"TASKSPERLEVEL",0,"use this for the horizontal clustering options. It is the maximum number of tasks wanted at each level."},
 		{"custom", CUSTOM,"CUSTOMSTRING",0,"use this in conjunction with the 'custom' method. For syntax, see the 'custom' description under methods."},
 		
@@ -240,12 +248,12 @@ bool parse_main_args(int argc, char * argv[], MainArguments & main_args)
         main_args.abort = true;
         main_args.abortReason += "\n  missing output prefix argument (--output)";
       }
-      // We need a method
+      /*No longer needed -- not providing a method calls noOp instead
       if (main_args.method == "") {
         main_args.abort = true;
         main_args.abortReason += "\n  missing method argument (--method)";
       }
-
+		*/
     }
 
     if (main_args.abort)
@@ -294,13 +302,18 @@ int main (int argc, char* argv[]) {
 	getGlobalSettings()->fileBase = main_args.output_prefix;
 	getGlobalSettings()->maxGraphs = main_args.max_permutations;
 	getGlobalSettings()->timeLimit = main_args.timeout;
-	getGlobalSettings()->mergeChains = main_args.chaining;
+	getGlobalSettings()->mergeChainsBefore = main_args.chainingBefore;
+	getGlobalSettings()->mergeChainsAfter = main_args.chainingAfter;
 	getGlobalSettings()->minSize = main_args.min_size;
 	getGlobalSettings()->attemptCap = main_args.attempt_cap;
 	
 	std::cout << "Generating permutations...\n";
 	std::vector<igraph_t *> * clusterings;
-	if(method == "exhaustive"){
+	if(method == ""){
+		noOp(getGlobalSettings()->original_graph);
+		std::cout << "Done!\n";
+	}
+	else if(method == "exhaustive"){
 		if(hashed){
 			/*Compute all transformations with hashing enabled to use up less memory */
 			std::vector<std::string> * hashes = exhaustivePermHashStart(getGlobalSettings()->original_graph);
