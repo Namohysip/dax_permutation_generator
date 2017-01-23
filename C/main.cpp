@@ -145,6 +145,7 @@ int parse_opt(int key, char *arg, struct argp_state *state)
 	    (main_args->method != "runtimeBalance") &&
 	    (main_args->method != "impactFactorBalance") &&
 	    (main_args->method != "distanceBalance") &&
+	    (main_args->method != "forkJoin") &&
 	    (main_args->method != "custom") 
 		) {
 	  main_args->abort = true;
@@ -207,6 +208,7 @@ bool parse_main_args(int argc, char * argv[], MainArguments & main_args)
 						"task has on the graph, based on its dependencies. It then clusters, based on identical impact factors, by runtime.\n\n"
 						"distanceBalance: Another horizontal clustering method that clusters tasks on the same level based on how 'close' their most common successor is. Then, based on the tasks that are closest together, "
 						"they are then combined by runtime.\n\n"
+						"forkJoin: Similar to runtimeBalance, but instead of clustering by level, it clusters by individual fork-join groups in the graph.\n\n"
 						"custom: Given a specific graph, combine in a certain way based on parameters passed on with the --custom argument. The syntax uses the task ids as the tasks to combine. Every set of ids separated by "
 						"commas , will be combined, such that the first task id remains, with the others merged in. Things separated by colons :  are individual clustering assignments. For example, taskA,taskB,taskC:taskD,taskE "
 						"is a command to combine task B and C into A, and to combine E into D.\n\n";
@@ -342,6 +344,9 @@ int main (int argc, char* argv[]) {
 		std::cout << "Done!\n";
 	}else if(method == "distanceBalance"){
 		distanceBalancedClustering(getGlobalSettings()->original_graph, tasksPerLevel, freeBinCapacity);
+		std::cout << "Done!\n";
+	}else if(method == "forkJoin"){
+		forkJoin(getGlobalSettings()->original_graph, tasksPerLevel,freeBinCapacity);
 		std::cout << "Done!\n";
 	}
 	else if (method == "custom"){

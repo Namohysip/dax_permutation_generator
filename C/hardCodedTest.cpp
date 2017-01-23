@@ -153,7 +153,7 @@ void test_with_small_hardcoded_graph() {
 	std::cout << std::to_string(total / randomized->size()) << "\n"; 
 	*/
 	Workflow * workflow = new Workflow("some_workflow");
-	if (workflow->load_from_xml("workflows/1000genome.xml")) {
+	if (workflow->load_from_xml("workflows/DAG.xml")) {
 	  exit(1);
 	} 
 	/*
@@ -172,7 +172,8 @@ void test_with_small_hardcoded_graph() {
 	*/
 	
 	igraph_t * import = getGlobalSettings()->original_graph;
-	igraph_t * newGraph = distanceBalancedClustering(import, 3, false);
+	getGlobalSettings()->mergeChainsBefore = true;
+	igraph_t * newGraph = forkJoin(import, 2, false);
 	double total = 0;
 	for(int i = 0; i < igraph_vcount(import); i++){
 		total += VAN(import,"runtime",i);
@@ -183,7 +184,8 @@ void test_with_small_hardcoded_graph() {
 		total += VAN(newGraph,"runtime",i);
 	}
 	std::cout << total << "\n";
-	printNodes(newGraph);
+	std::cout << igraph_vcount(import) << "\n";
+	std::cout << igraph_vcount(newGraph) << "\n";
 	
 	
 	/*

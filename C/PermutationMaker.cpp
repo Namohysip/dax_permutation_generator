@@ -715,7 +715,59 @@ bool mergeAChain(igraph_t * graph){
 
 
 
-
+std::vector<struct taskBin *> * clusterByRuntime(igraph_t * newGraph, std::vector<igraph_integer_t> * tasksAtLevel, int perLevel, bool noBinRestrictions){
+	std::vector<struct taskBin *> * taskBins = new std::vector<struct taskBin *>;
+	
+	struct taskBin * smallestBin = NULL;
+	int maxBinSize = tasksAtLevel->size() / perLevel;
+	
+	for(int i = 0; i < perLevel; i++){
+		taskBins->push_back(new struct taskBin);
+	}
+	smallestBin = taskBins->at(0);
+	//Keep merging tasks until nothing is left.
+	while(tasksAtLevel->size() > 0){
+		
+		double maxRuntime = VAN(newGraph,"runtime",tasksAtLevel->at(0));
+		int indexOfMax = 0; //needed for updating the vector list later
+		igraph_integer_t maxTask = tasksAtLevel->at(0);
+		
+		//find the largest task by runtime
+		for(int i = 0; i < tasksAtLevel->size(); i++){
+			double nextRuntime = VAN(newGraph,"runtime",tasksAtLevel->at(i));
+			if(nextRuntime > maxRuntime){
+				maxRuntime = nextRuntime;
+				indexOfMax = i;
+				maxTask = tasksAtLevel->at(i);
+			}
+		}
+		//place the largest task in the smallest bin
+		smallestBin->totalRuntime += maxRuntime;
+		smallestBin->ids.push_back(VAS(newGraph,"id",maxTask));
+		tasksAtLevel->erase(tasksAtLevel->begin() + indexOfMax);
+		//find new smallest bin
+		smallestBin = NULL;
+		while(smallestBin == NULL) {
+			for(int i = 0; i < taskBins->size(); i++){
+				if(smallestBin != NULL) {
+					if(smallestBin->totalRuntime > taskBins->at(i)->totalRuntime && (taskBins->at(i)->ids.size() < maxBinSize || noBinRestrictions)){
+					smallestBin = taskBins->at(i);
+					}
+				}
+				else{
+					if(taskBins->at(i)->ids.size() < maxBinSize){
+						smallestBin = taskBins->at(i);
+					}
+				}
+			}
+			if(smallestBin == NULL){
+				maxBinSize++; //if all bins are full, increment the bin size in order to put in the leftovers
+			}
+		}	
+	}
+	
+	return taskBins;
+}
 
 /*Begins by creating a copy of the source graph.
   All work is done on the new graph.
@@ -755,54 +807,11 @@ igraph_t * horizontalClustering(igraph_t * graph, int perLevel, bool noBinRestri
 	//most empty bin, and so on, until all tasks have been placed in a bin.
 	for(int level = 1; level < depth; level++){
 		std::vector<igraph_integer_t> * tasksAtLevel = getGraphsAtLevel(newGraph, level);
-		std::vector<struct taskBin *> * taskBins = new std::vector<struct taskBin *>;
-		struct taskBin * smallestBin = NULL;
-		int maxBinSize = tasksAtLevel->size() / perLevel;
-		for(int i = 0; i < perLevel; i++){
-			taskBins->push_back(new struct taskBin);
-		}
-		smallestBin = taskBins->at(0);
-		//Keep merging tasks until nothing is left.
-		while(tasksAtLevel->size() > 0){
-			
-			double maxRuntime = VAN(newGraph,"runtime",tasksAtLevel->at(0));
-			int indexOfMax = 0; //needed for updating the vector list later
-			igraph_integer_t maxTask = tasksAtLevel->at(0);
-			
-			//find the largest task by runtime
-			for(int i = 0; i < tasksAtLevel->size(); i++){
-				double nextRuntime = VAN(newGraph,"runtime",tasksAtLevel->at(i));
-				if(nextRuntime > maxRuntime){
-					maxRuntime = nextRuntime;
-					indexOfMax = i;
-					maxTask = tasksAtLevel->at(i);
-				}
-			}
-			//place the largest task in the smallest bin
-			smallestBin->totalRuntime += maxRuntime;
-			smallestBin->ids.push_back(VAS(newGraph,"id",maxTask));
-			tasksAtLevel->erase(tasksAtLevel->begin() + indexOfMax);
-			//find new smallest bin
-			smallestBin = NULL;
-			while(smallestBin == NULL) {
-				for(int i = 0; i < taskBins->size(); i++){
-					if(smallestBin != NULL) {
-						if(smallestBin->totalRuntime > taskBins->at(i)->totalRuntime && (taskBins->at(i)->ids.size() < maxBinSize || noBinRestrictions)){
-						smallestBin = taskBins->at(i);
-						}
-					}
-					else{
-						if(taskBins->at(i)->ids.size() < maxBinSize){
-							smallestBin = taskBins->at(i);
-						}
-					}
-				}
-				if(smallestBin == NULL){
-					maxBinSize++; //if all bins are full, increment the bin size in order to put in the leftovers
-				}
-			}
-			
-		}
+		
+		std::vector<struct taskBin *> * taskBins = clusterByRuntime(newGraph, tasksAtLevel, perLevel, noBinRestrictions);
+		
+		
+		
 		//after the bins have all been properly clustered at that level...
 		for(int i = 0; i < taskBins->size(); i++){
 			combineMulti(newGraph, &(taskBins->at(i)->ids));
@@ -1308,6 +1317,89 @@ std::vector<std::string>  * split(const std::string &s, char delim) {
     return elems;
 }
 
+igraph_t * forkJoin(igraph_t * graph, int perLevel, bool noBinRestrictions){
+	igraph_t * newGraph = new igraph_t;
+	igraph_copy(newGraph, graph);
+	if(config.mergeChainsBefore){ //auto-combine chains after all other changes, if desired
+		while(mergeAChain(newGraph));
+	}
+	for(int i = 0; i < igraph_vcount(newGraph); i++){
+		std::vector<igraph_integer_t> * tasksInFork = new std::vector<igraph_integer_t>;
+		tasksInFork->push_back(i);
+		igraph_integer_t task = i;
+		igraph_vs_t children;
+		igraph_vs_t parents;
+		igraph_vit_t childrenIter;
+		igraph_vit_t parentsIter;
+		igraph_vs_adj(&children,task,IGRAPH_OUT);
+		igraph_vs_adj(&parents,task,IGRAPH_IN);
+		igraph_vit_create(newGraph,children,&childrenIter);
+		igraph_vit_create(newGraph,parents,&parentsIter);
+		igraph_integer_t childSize;
+		igraph_integer_t parentSize; 
+		igraph_vs_size(newGraph, &children, &childSize);
+		igraph_vs_size(newGraph, &parents, &parentSize);
+		
+		if((int) childSize == 1 && (int) parentSize == 1){ //if task i has only one parent and one child
+			igraph_integer_t forkHead = IGRAPH_VIT_GET(parentsIter);
+			igraph_integer_t forkSink = IGRAPH_VIT_GET(childrenIter);
+			
+			for(int j = i+1; j < igraph_vcount(newGraph); j++){ //check for all other tasks that. . .
+				igraph_integer_t task2 = j;
+				igraph_vs_t children2;
+				igraph_vs_t parents2;
+				igraph_vit_t childrenIter2;
+				igraph_vit_t parentsIter2;
+				igraph_vs_adj(&children2,task2,IGRAPH_OUT);
+				igraph_vs_adj(&parents2,task2,IGRAPH_IN);
+				igraph_vit_create(newGraph,children2,&childrenIter2);
+				igraph_vit_create(newGraph,parents2,&parentsIter2);
+				igraph_vs_size(newGraph, &children2, &childSize);
+				igraph_vs_size(newGraph, &parents2, &parentSize);
+		
+				if((int) childSize == 1 && (int) parentSize == 1){ //if task j has only one parent and one child
+					igraph_integer_t forkHead2 = IGRAPH_VIT_GET(parentsIter2);
+					igraph_integer_t forkSink2 = IGRAPH_VIT_GET(childrenIter2);
+					
+					if((int) forkHead == (int) forkHead2 && (int) forkSink == (int) forkSink2){ //and has the same parent and child as task i
+						tasksInFork->push_back(j); //it is part of the same fork-join
+					}
+				}
+				
+				igraph_vit_destroy(&parentsIter2);
+				igraph_vit_destroy(&childrenIter2);
+				igraph_vs_destroy(&parents2);
+				igraph_vs_destroy(&children2);	
+			}
+			if(tasksInFork->size() > perLevel){
+				std::vector<struct taskBin *> * taskBins = clusterByRuntime(newGraph, tasksInFork, perLevel, noBinRestrictions);
+					for(int i = 0; i < taskBins->size(); i++){
+						combineMulti(newGraph, &(taskBins->at(i)->ids));
+					}
+					std::cout << "Found and merged a fork-join.\n";
+				//memory cleanup
+				for(int i = 0; i < taskBins->size(); i++){
+					delete(taskBins->at(i));
+				}
+				delete(taskBins);
+			}
+			
+		}
+		
+		
+		igraph_vit_destroy(&parentsIter);
+		igraph_vit_destroy(&childrenIter);
+		igraph_vs_destroy(&parents);
+		igraph_vs_destroy(&children);
+		delete(tasksInFork);
+	}
+	if(config.mergeChainsAfter){ //auto-combine chains after all other changes, if desired
+		while(mergeAChain(newGraph));
+	}
+	
+	outputDAXStr(dagToDAXStr(newGraph));
+	return newGraph;
+}
 
 igraph_t * noOp(igraph_t * graph){
 	igraph_t * newGraph = new igraph_t;
