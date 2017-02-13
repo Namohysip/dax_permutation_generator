@@ -18,11 +18,19 @@
 int permCount = 0;
 struct GlobalSettings config;
 
+
+
+
 /*Combines the two given nodes, such that node2 is combined into node2.
 Runtimes are added together, and the ID of node1 is kept. */
 void combine(igraph_t * G, igraph_integer_t node1, igraph_integer_t node2){
-	
-	double newRuntime = VAN(G, "runtime", node1) + VAN(G, "runtime", node2);
+	std::string oldComponents1 = VAS(G,"components",node1);
+	std::string oldComponents2 = VAS(G,"components",node2);
+	std::string newComponents = oldComponents1 + "," + oldComponents2;
+	std::vector<std::string>* subgraphComponents = split( newComponents, ',');
+	int procResult;
+	double runtimeResult;
+	getMultiprocRuntime(subgraphComponents, &procResult, &runtimeResult);
 	//node1 retains its original ID
 	
 	igraph_vs_t out2;
@@ -72,9 +80,11 @@ void combine(igraph_t * G, igraph_integer_t node1, igraph_integer_t node2){
 		igraph_es_destroy(&edel);
 	}
 	
+	SETVAN(G, "runtime", node1, runtimeResult);
+	SETVAS(G,"components",node1, newComponents.c_str());
+	SETVAN(G,"procs",node1,procResult);
 	igraph_vs_t del;
 	igraph_vs_1(&del, node2);
-	SETVAN(G, "runtime", node1, newRuntime);
 	igraph_delete_vertices(G, del);
 	igraph_vs_destroy(&del);
 	igraph_vit_destroy(&outIter2);
@@ -117,7 +127,7 @@ void combineMulti(igraph_t * graph, std::vector<igraph_integer_t> * tasks){
 	
 	
 }
-/*Same as the othger combineMulti, but takes a list of strings that correspond
+/*Same as the other combineMulti, but takes a list of strings that correspond
   to the "id" values of the vertices to be combined. Converts the list to real ids,
   and then calls the other combineMulti */
 void combineMulti(igraph_t * graph, std::vector<std::string> * tasks){
@@ -226,6 +236,10 @@ void dagToDAX(igraph_t * graph){
 			permFile << VAS(graph, "id", i);
 			permFile << "\" namespace=\"NAMESPACE\" name=\"Task\" version=\"1.0\" runtime=\"";
 			permFile << std::to_string(VAN(graph, "runtime", i));
+			permFile << "\" processors=\"";
+			permFile << std::to_string(VAN(graph,"procs", i));
+			permFile << "\" components=\"";
+			permFile << (VAS(graph,"components",i));
 			permFile << "\">\n</job>\n";
 		}
 		permFile << "\n";
@@ -346,7 +360,10 @@ std::string dagToDAXStr(igraph_t * graph){
 	for(int i = 0; i < igraph_vcount(graph); i++){
 		result += "<job id =\"";
 		result += std::string(VAS(graph, "id", i));
-		result += "\" namespace=\"NAMESPACE\" name=\"Task\" version=\"1.0\" runtime=\"" + std::to_string(VAN(graph, "runtime", i)) + "\"/>\n\n";
+		result += "\" namespace=\"NAMESPACE\" name=\"Task\" version=\"1.0\" runtime=\"" + std::to_string(VAN(graph, "runtime", i));
+		result += "\" processors=\"" + std::to_string(VAN(graph,"procs", i)) + "\" components=\"" + VAS(graph,"components",i);
+		result += 	"\"/>\n\n";
+		
 	}
 	result += "\n";
 	for (int i = 0; i < igraph_vcount(graph); i++) {
@@ -611,7 +628,7 @@ igraph_integer_t makeHead(igraph_t * graph){
 			igraph_add_edge(graph, head, node);
 		}
 	}
-	std::cout << "Number of heads: " << count << "\n";
+	
 	return head;
 }
 
@@ -633,7 +650,7 @@ igraph_integer_t makeSink(igraph_t * graph){
 			igraph_add_edge(graph,node,sink);
 		}
 	}
-	std::cout << "Number of sinks: " << count << "\n";
+	
 	return sink;
 }
 
@@ -675,8 +692,6 @@ igraph_integer_t levelLabel(igraph_t * graph){
 		}
 	}
 	
-	std::cout << "Head level: " << VAN(graph,"level",head) << "\n";
-	std::cout << "Sink level: " << VAN(graph,"level",sink) << "\n";
 	return head;
 }
 
@@ -1399,6 +1414,165 @@ igraph_t * forkJoin(igraph_t * graph, int perLevel, bool noBinRestrictions){
 	
 	outputDAXStr(dagToDAXStr(newGraph));
 	return newGraph;
+}
+void getMultiprocRuntime(std::vector<std::string> * subgraphIDs, int * procResult, double * runtimeResult){
+	double efficiency = -1;
+	int maxProcs = config.maxProcs + 1;
+	while(efficiency < config.minProcEfficiency){
+		maxProcs--;
+		igraph_vector_t * igraphVectorSub = new igraph_vector_t;
+		igraph_vector_init(igraphVectorSub, subgraphIDs->size());
+		for(int i = 0; i < subgraphIDs->size(); i++){
+			igraph_vector_set(igraphVectorSub, i, findVertexID(config.original_graph, subgraphIDs->at(i)));
+		}	
+		igraph_t * subgraph = new igraph_t;
+		//this subgraph^ can be destroyed without affecting the original graph, as per documentaiton
+		//DO NOT call igraph_vector_destroy on this^ as per the documentation.
+		igraph_vs_t subgraphSelector;
+		igraph_vs_vector(&subgraphSelector, igraphVectorSub);
+		igraph_induced_subgraph(config.original_graph, subgraph, subgraphSelector, IGRAPH_SUBGRAPH_AUTO);
+	//	std::cout << igraph_vcount(subgraph) << "\n";
+		//subgraph is now the subgraph of the component ids being combined together.
+		//First, calculate the "longest distance to completion" values for each one, like a reverse levelLabel.
+		//This method will also calculate the number of "dependencies" a graph has before it can run. This will be
+		//useful for the "ready" list later
+		igraph_integer_t head = calculateB_levels(subgraph);
+		double cumulativeRuntime = 0;
+		//calculate total runtime of graph
+		for(int i = 0; i < igraph_vcount(subgraph); i++){
+			cumulativeRuntime += VAN(subgraph,"runtime",i);
+		}
+		std::vector<struct taskBin *> procs;
+		for(int i = 0; i < maxProcs; i++){
+			procs.push_back(new taskBin);
+		}	
+		std::vector<igraph_integer_t> ready;
+		ready.push_back(head);
+		while(!ready.empty()){
+			//finds the next ready task with the longest critical path.
+			int indexOfLargestB = 0;
+			for(int i = 1; i < ready.size(); i++){
+				if(VAN(subgraph, "b-level",ready.at(indexOfLargestB)) < VAN(subgraph, "b-level",ready.at(i))){
+					indexOfLargestB = i;
+				}	
+			}
+			igraph_integer_t nextTask = ready.at(indexOfLargestB);
+			ready.erase(ready.begin() + indexOfLargestB); //removes it from the ready list.
+			
+			//finds the best proc to add it in based on its "earliest start time"
+			int bestProcIndex = 0;
+			int bestProcStart;
+			if(procs.at(0)->totalRuntime < VAN(subgraph,"est",nextTask)){
+				bestProcStart = VAN(subgraph,"est",nextTask); //the proc is free BEFORE the earliest start time
+			}
+			else {
+				bestProcStart = procs.at(0)->totalRuntime; //the proc is free AT or AFTER the earliest start time
+			}
+			
+			//Checks for either the "lowest" index proc that starts at or before est, 
+			//or the proc that is free at the earliest time.
+			for(int i = 1; i < procs.size(); i++){
+				if(bestProcStart > procs.at(i)->totalRuntime && bestProcStart > VAN(subgraph,"est",nextTask)){
+					bestProcIndex = i;
+					bestProcStart = procs.at(i)->totalRuntime;
+				}
+			}
+			//adds the task to the proc and updates its makespan.
+			
+			double newMakespan = 0;
+			//If the proc is available BEFORE the est, then the new makespan is dependent on when
+			//the new task starts and how long it takes to start.
+			if(procs.at(bestProcIndex)->totalRuntime < VAN(subgraph,"est",nextTask)){
+				newMakespan = VAN(subgraph,"est",nextTask) + VAN(subgraph,"runtime",nextTask);
+			}
+			//otherwise, it's available AFTER the est, so its new makespan is its current makespan + runtime of task.
+			else{
+				newMakespan = procs.at(bestProcIndex)->totalRuntime + VAN(subgraph,"runtime",nextTask);
+			}
+			procs.at(bestProcIndex)->totalRuntime = newMakespan;
+			
+			//update readyList
+			//get all vertices that were dependent on the task added.
+			igraph_vs_t children;
+			igraph_vit_t childrenIter;
+			igraph_vs_adj(&children,nextTask,IGRAPH_OUT);
+			igraph_vit_create(subgraph,children,&childrenIter);
+			
+			while(! IGRAPH_VIT_END(childrenIter) ){
+				igraph_integer_t child = IGRAPH_VIT_GET(childrenIter);
+				//update earliest start time if their est must now be later due to the later end time of a parent task
+				if(VAN(subgraph,"est",child) < newMakespan){
+					SETVAN(subgraph,"est",child,newMakespan);
+				}
+				//decrement dependencies by 1, since that task was added to the processors.
+				int dependencies = VAN(subgraph,"dependencies",child);
+				dependencies--;
+				SETVAN(subgraph,"dependencies",child, dependencies);
+				//if there are now exactly 0 dependencies, then all previous tasks have been added to the procs.
+				if(dependencies == 0){
+					ready.push_back(child);
+				}
+				
+				IGRAPH_VIT_NEXT(childrenIter);
+			}
+		
+		
+			igraph_vs_destroy(&children);
+			igraph_vit_destroy(&childrenIter);
+		}
+	
+		//return with final results.
+		*procResult = 1;
+		*runtimeResult = procs.at(0)->totalRuntime;
+		for(int i = 1; i < procs.size(); i++){
+			if(procs.at(i)->totalRuntime > 0){ //don't count processors that are unused.
+				*procResult = i + 1;
+				if(procs.at(i)->totalRuntime > *runtimeResult){
+					*runtimeResult = procs.at(i)->totalRuntime;
+				}
+			}
+		}
+		//do-over if the efficiency isn't up to par with specifications.
+		double runtimeTimesProcs = *runtimeResult * *procResult;
+		
+		efficiency = cumulativeRuntime / runtimeTimesProcs;
+		if(*runtimeResult > 500000){
+			std::cout << efficiency << "\n";
+		}
+	}
+}
+
+igraph_integer_t calculateB_levels(igraph_t * graph){
+	igraph_integer_t sink = makeSink(graph);
+	igraph_integer_t head = makeHead(graph);
+	for(int i = 0; i < igraph_vcount(graph); i++){
+		SETVAN(graph,"b-level",i,0);
+		SETVAN(graph,"dependencies",i,0);
+		SETVAN(graph,"est",i,0);
+	}
+	std::queue<igraph_integer_t> que;
+	que.push(sink); //start at the bottom
+	while(!que.empty()){
+		igraph_integer_t nextNode = que.front();
+		que.pop();
+		int distToFinish = VAN(graph,"b-level",nextNode);
+		igraph_vs_t parents;
+		igraph_vit_t parentIter;
+		igraph_vs_adj(&parents,nextNode,IGRAPH_IN);
+		igraph_vit_create(graph,parents,&parentIter);
+		SETVAN(graph,"dependencies",nextNode,IGRAPH_VIT_SIZE(parentIter));
+		while(! IGRAPH_VIT_END(parentIter)){
+			igraph_integer_t parent = IGRAPH_VIT_GET(parentIter);
+			if(VAN(graph,"b-level",parent) < distToFinish + VAN(graph,"runtime",parent)){ 
+			//if the parent's level is smaller than the child's distance to finish + parent's runtime...
+			//Set the parent's b-level to the new, higher value, as it is the new critical path
+				SETVAN(graph,"b-level",parent,distToFinish + VAN(graph,"runtime",parent));
+				que.push(parent); //push the parent back onto the queue to update its parents as well.
+			}
+			IGRAPH_VIT_NEXT(parentIter);
+		}
+	}
+	return head;
 }
 
 igraph_t * noOp(igraph_t * graph){

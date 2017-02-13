@@ -29,6 +29,7 @@ void test_with_small_hardcoded_graph() {
 	 //how to set attributes
 	 const char * runtime = "runtime";
 	 const char * id = "id";
+	 const char * cmp = "components";
 	 SETVAN(&graph, runtime, 3, 60); //This sets the runtime attribute to be 60 for vertex 3
 	 SETVAN(&graph, runtime, 0, 60);
 	 SETVAN(&graph, runtime, 1, 60);
@@ -39,6 +40,11 @@ void test_with_small_hardcoded_graph() {
 	 SETVAS(&graph, id, 2,"2");
 	 SETVAS(&graph, id, 3,"3");
 	 SETVAS(&graph, id, 4,"4");
+	 SETVAS(&graph, cmp, 0,"0");
+	 SETVAS(&graph, cmp, 1,"1");
+	 SETVAS(&graph, cmp, 2,"2");
+	 SETVAS(&graph, cmp, 3,"3");
+	 SETVAS(&graph, cmp, 4,"4");
 	 
 	 //How to copy graphs (including attributes!)
 	 printEdges(&graph);
@@ -74,6 +80,7 @@ void test_with_small_hardcoded_graph() {
 	 printEdges(&another);
 	 printNodes(&another);
 	 
+	getGlobalSettings()->original_graph = &another;
 	 
 	 //Testing combine method:
 	 std::cout << "Combining nodes 1 and 2 in the copy: \n";
@@ -153,7 +160,7 @@ void test_with_small_hardcoded_graph() {
 	std::cout << std::to_string(total / randomized->size()) << "\n"; 
 	*/
 	Workflow * workflow = new Workflow("some_workflow");
-	if (workflow->load_from_xml("workflows/DAG.xml")) {
+	if (workflow->load_from_xml("workflows/1000genome.xml")) {
 	  exit(1);
 	} 
 	/*
@@ -173,7 +180,7 @@ void test_with_small_hardcoded_graph() {
 	
 	igraph_t * import = getGlobalSettings()->original_graph;
 	getGlobalSettings()->mergeChainsBefore = true;
-	igraph_t * newGraph = forkJoin(import, 2, false);
+	igraph_t * newGraph = horizontalClustering(import, 2, false);
 	double total = 0;
 	for(int i = 0; i < igraph_vcount(import); i++){
 		total += VAN(import,"runtime",i);

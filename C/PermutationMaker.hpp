@@ -10,13 +10,15 @@ struct GlobalSettings {
 	double timeLimit;
 	bool mergeChainsBefore;
 	bool mergeChainsAfter;
-	int attemptCap;
+	int attemptCap = 20;
+	int maxProcs = 2;
+	double minProcEfficiency = 0.75;
 };
 
 /*used to preemptively store tasks for clustering
  all at once rather than one by one. */
 struct taskBin {
-	double totalRuntime;
+	double totalRuntime = 0;
 	std::vector<std::string> ids;
 	double lastIFAdded = -1;
 	igraph_integer_t lastAdded = -1;
@@ -28,8 +30,10 @@ struct taskDistance {
 	igraph_integer_t id = -1;
 };
 
+std::vector<std::string>  * split(const std::string &s, char delim);
 void combine(igraph_t * , igraph_integer_t, igraph_integer_t);
-
+void getMultiprocRuntime(std::vector<std::string> * subgraphIDs, int * procresult, double * runtimeResult);
+igraph_integer_t calculateB_levels(igraph_t * graph);
 void combineMulti(igraph_t * graph, std::vector<igraph_integer_t> * tasks);
 bool addWithoutDuplicates( std::vector<igraph_t *> * , igraph_t *);
 std::vector<igraph_t *> * exhaustivePermStart(igraph_t * graph);

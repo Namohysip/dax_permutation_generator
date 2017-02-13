@@ -68,7 +68,9 @@ int Workflow::load_from_xml(const std::string &xml_filename)
 		igraph_add_vertices(graph, 1, 0);
 		igraph_integer_t ident = igraph_vcount(graph) - 1;
 		SETVAS(graph, "id", ident, job.attribute("id").value());
+		SETVAS(graph, "components", ident, job.attribute("id").value());
 		SETVAN(graph, "runtime", ident, (double) strtod(job.attribute("runtime").value(),NULL));
+		SETVAN(graph, "procs", ident, 1);
 	//add its id key-value pair to the map as well.
 		idVals.insert ( std::pair<std::string,int>(job.attribute("id").value(), (int) ident));
 
