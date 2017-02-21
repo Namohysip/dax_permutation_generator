@@ -5,7 +5,7 @@
 struct GlobalSettings {
 	igraph_t * original_graph;
 	std::string fileBase;
-	int maxGraphs;
+	int maxGraphs = 0;
 	int minSize = 1;
 	double timeLimit;
 	bool mergeChainsBefore;
@@ -30,7 +30,7 @@ struct taskDistance {
 	igraph_integer_t id = -1;
 };
 
-std::vector<std::string>  * split(const std::string &s, char delim);
+void split(const std::string &s, char delim, std::vector<std::string>  * elems);
 void combine(igraph_t * , igraph_integer_t, igraph_integer_t);
 void getMultiprocRuntime(std::vector<std::string> * subgraphIDs, int * procresult, double * runtimeResult);
 igraph_integer_t calculateB_levels(igraph_t * graph);

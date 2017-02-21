@@ -27,10 +27,11 @@ void combine(igraph_t * G, igraph_integer_t node1, igraph_integer_t node2){
 	std::string oldComponents1 = VAS(G,"components",node1);
 	std::string oldComponents2 = VAS(G,"components",node2);
 	std::string newComponents = oldComponents1 + "," + oldComponents2;
-	std::vector<std::string>* subgraphComponents = split( newComponents, ',');
+	std::vector<std::string> subgraphComponents;
+	split( newComponents, ',', &subgraphComponents);
 	int procResult;
 	double runtimeResult;
-	getMultiprocRuntime(subgraphComponents, &procResult, &runtimeResult);
+	getMultiprocRuntime(&subgraphComponents, &procResult, &runtimeResult);
 	//node1 retains its original ID
 	
 	igraph_vs_t out2;
@@ -470,6 +471,8 @@ bool exhaustivePermHash(std::vector<std::string> * graphs, igraph_t * graph, clo
 				}
 				if(addHashAndOutput(graphs, newGraph)){
 					if(! exhaustivePermHash(graphs, newGraph, start)){
+						igraph_destroy(newGraph);
+						delete(newGraph);
 						return false; //ran out of time
 					}
 				}
@@ -555,7 +558,7 @@ std::vector<igraph_t *> * randomizedPerm(igraph_t * graph){
 	std::vector<igraph_t *> * graphs = new std::vector<igraph_t*>;
 	graphs->push_back(graph);
 	dagToDAX(graph);
-	while(graphs->size() < config.maxGraphs && config.timeLimit > double(clock() - start) / CLOCKS_PER_SEC){ 
+	while((graphs->size() < config.maxGraphs || config.maxGraphs < 1)&& config.timeLimit > double(clock() - start) / CLOCKS_PER_SEC){ 
 	//when time runs out or the goal permutation count is met, whichever comes first.
 		attempts++;
 		igraph_t * sourceGraph = graphs->at(rand() % graphs->size()); //get a random graph already permuted
@@ -607,6 +610,7 @@ int RandomizedPermEvenSpread(igraph_t * graph){
 		igraph_destroy(iteration);	
 		delete(iteration);
 	}
+	delete(open);
 	return i;
 }
 
@@ -664,14 +668,12 @@ igraph_integer_t levelLabel(igraph_t * graph){
 	igraph_integer_t sink = makeSink(graph);
 	for(int i = 0; i < igraph_vcount(graph); i++){
 		SETVAN(graph,"level",i,0);
-	//	SETVAB(graph,"added",i,false);
 	}
 	std::queue<igraph_integer_t> que;
 	que.push(head); //start at the head
 	while(!que.empty()){
 		igraph_integer_t nextNode = que.front();
 		que.pop();
-		//SETVAB(graph,"added",nextNode,false);
 		int level = VAN(graph,"level",nextNode) + 1;
 		igraph_vs_t children;
 		igraph_vit_t childIter;
@@ -683,13 +685,12 @@ igraph_integer_t levelLabel(igraph_t * graph){
 			//if the child's level is less than it should be.
 			//Otherwise, its level is higher because of a deeper parent than this one
 				SETVAN(graph,"level",child,level);
-				//if(! VAB(graph,"added",child)){ //If the child isn't already on the queue
-					que.push(child);
-				//	SETVAB(graph,"added",child,true);
-				//}
+				que.push(child);
 			}
 			IGRAPH_VIT_NEXT(childIter);
 		}
+		igraph_vs_destroy(&children);
+		igraph_vit_destroy(&childIter);
 	}
 	
 	return head;
@@ -824,8 +825,6 @@ igraph_t * horizontalClustering(igraph_t * graph, int perLevel, bool noBinRestri
 		std::vector<igraph_integer_t> * tasksAtLevel = getGraphsAtLevel(newGraph, level);
 		
 		std::vector<struct taskBin *> * taskBins = clusterByRuntime(newGraph, tasksAtLevel, perLevel, noBinRestrictions);
-		
-		
 		
 		//after the bins have all been properly clustered at that level...
 		for(int i = 0; i < taskBins->size(); i++){
@@ -1292,6 +1291,12 @@ igraph_t * distanceBalancedClustering(igraph_t * graph, int perLevel, bool noBin
 		}
 		delete(tasksAtLevel);
 		delete(taskBins);
+		for(std::map<igraph_integer_t,std::map<igraph_integer_t,int> * >::iterator itr = taskDistances->begin(); itr != taskDistances->end(); itr++){
+			itr->second->clear();
+			delete(itr->second);
+		}
+		taskDistances->clear();
+		delete(taskDistances);
 	}
 
 	igraph_vs_t delSink;
@@ -1324,12 +1329,6 @@ void split(const std::string &s, char delim, std::vector<std::string>  * elems) 
     while (std::getline(ss, item, delim)) {
         elems->push_back(item);
     }
-}
-/*splitting a string, taken and modified from stackoverflow */
-std::vector<std::string>  * split(const std::string &s, char delim) {
-    std::vector<std::string> * elems = new std::vector<std::string>;
-    split(s, delim, elems);
-    return elems;
 }
 
 igraph_t * forkJoin(igraph_t * graph, int perLevel, bool noBinRestrictions){
@@ -1427,11 +1426,9 @@ void getMultiprocRuntime(std::vector<std::string> * subgraphIDs, int * procResul
 		}	
 		igraph_t * subgraph = new igraph_t;
 		//this subgraph^ can be destroyed without affecting the original graph, as per documentaiton
-		//DO NOT call igraph_vector_destroy on this^ as per the documentation.
 		igraph_vs_t subgraphSelector;
 		igraph_vs_vector(&subgraphSelector, igraphVectorSub);
 		igraph_induced_subgraph(config.original_graph, subgraph, subgraphSelector, IGRAPH_SUBGRAPH_AUTO);
-	//	std::cout << igraph_vcount(subgraph) << "\n";
 		//subgraph is now the subgraph of the component ids being combined together.
 		//First, calculate the "longest distance to completion" values for each one, like a reverse levelLabel.
 		//This method will also calculate the number of "dependencies" a graph has before it can run. This will be
@@ -1536,9 +1533,13 @@ void getMultiprocRuntime(std::vector<std::string> * subgraphIDs, int * procResul
 		double runtimeTimesProcs = *runtimeResult * *procResult;
 		
 		efficiency = cumulativeRuntime / runtimeTimesProcs;
-		if(*runtimeResult > 500000){
-			std::cout << efficiency << "\n";
+		for(int i = 0; i < procs.size(); i++){
+			delete(procs.at(i));
 		}
+		igraph_vector_destroy(igraphVectorSub);
+		delete(igraphVectorSub);
+		igraph_destroy(subgraph);
+		delete(subgraph);
 	}
 }
 
@@ -1571,6 +1572,8 @@ igraph_integer_t calculateB_levels(igraph_t * graph){
 			}
 			IGRAPH_VIT_NEXT(parentIter);
 		}
+		igraph_vs_destroy(&parents);
+		igraph_vit_destroy(&parentIter);
 	}
 	return head;
 }
@@ -1587,12 +1590,13 @@ igraph_t * noOp(igraph_t * graph){
 	return newGraph;
 }
 igraph_t * customClustering(igraph_t * graph, std::string idList){
-	std::vector<std::string> * combinations = split(idList, ':');
+	std::vector<std::string> combinations;
+	split(idList, ':', &combinations);
 	igraph_t * newGraph = new igraph_t;
 	igraph_copy(newGraph, graph);
-	for(int i = 0; i < combinations->size(); i++){
-		std::vector<std::string> * pairs = split(combinations->at(i), ',');
-		combineMulti(newGraph,pairs);
+	for(int i = 0; i < combinations.size(); i++){
+		std::vector<std::string> sets;split(combinations.at(i), ',', &sets);
+		combineMulti(newGraph, &sets);
 	}
 	
 	outputDAXStr(dagToDAXStr(newGraph));

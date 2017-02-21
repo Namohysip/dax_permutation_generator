@@ -32,6 +32,8 @@ struct MainArguments
 	bool freeBinCapacity = true;
 	int tasksPerLevel = 1;
 	std::string custom;
+	int maxProcessors = 1;
+	double minimumEfficiency = 0.75;
 	
 	bool abort = false;  	  // set to true while parsing argument if error
 	std::string abortReason;  // Error message to print
@@ -52,7 +54,9 @@ enum {
 	CHAINMERGEAFTER,
 	TASKSPERLEVEL,
 	EVENNUMTASKSPERBIN,
-	CUSTOM
+	CUSTOM,
+	PROCS,
+	EFFICIENCY
 	
 };
 /**
@@ -117,10 +121,10 @@ int parse_opt(int key, char *arg, struct argp_state *state)
 	}
     case TIMEOUT:
     {
-	if ((sscanf(arg, "%lf",&(main_args->timeout)) != 1) ||
+		if ((sscanf(arg, "%lf",&(main_args->timeout)) != 1) ||
             (main_args->timeout < 0)) {
-	  main_args->abort = true;
-	  main_args->abortReason += "\n  invalid timeout argument '" +
+		main_args->abort = true;
+		main_args->abortReason += "\n  invalid timeout argument '" +
 					std::string(arg) + "'";
  	} 
 	break;
@@ -180,7 +184,26 @@ int parse_opt(int key, char *arg, struct argp_state *state)
 			}
 		break;
 	}
-    } // end switch
+	case PROCS:
+	{
+		if ((sscanf(arg,"%d",&(main_args->maxProcessors)) != 1) ||
+			(main_args->maxProcessors < 1)){
+				main_args->abort = true;
+				main_args->abortReason += "\n invalid maximum processors value '" + std::string(arg) + "'";
+			}
+		break;
+	}
+	case EFFICIENCY:
+	{
+		
+		if ((sscanf(arg, "%lf",&(main_args->minimumEfficiency)) != 1) ||
+            (main_args->minimumEfficiency > 1)) {
+		main_args->abort = true;
+		main_args->abortReason += "\n  invalid minimum efficiency argument '" +
+					std::string(arg) + "'";
+		} 
+    }
+	}	// end switch
 
     return 0;
 }
@@ -228,7 +251,8 @@ bool parse_main_args(int argc, char * argv[], MainArguments & main_args)
 		{"chain-merge-after", CHAINMERGEAFTER,0,0,"use this if you want to always merge single-parent-single-child vertices after all other operations, for methods that output only a single graph. Identical to chain-merge-before if on multi-graph outputs."},
 		{"tasks-per-level", TASKSPERLEVEL,"TASKSPERLEVEL",0,"use this for the horizontal clustering options. It is the maximum number of tasks wanted at each level."},
 		{"custom", CUSTOM,"CUSTOMSTRING",0,"use this in conjunction with the 'custom' method. For syntax, see the 'custom' description under methods."},
-		
+		{"max-processors",PROCS,"PROCS",0,"This is used to specify the maximum number of processors used to combine tasks that can be done in parallel."},
+		{"minimum-efficiency", EFFICIENCY, "EFFICIENCY",0,"This us the minimum allowed efficiency of processor use for a task; if the efficiency of a combined task is not at or above this value, the combination will be redone with fewer processors."},
 		{0, '\0', 0, 0, 0, 0} // The options array must be NULL-terminated
     };
 
@@ -308,6 +332,8 @@ int main (int argc, char* argv[]) {
 	getGlobalSettings()->mergeChainsAfter = main_args.chainingAfter;
 	getGlobalSettings()->minSize = main_args.min_size;
 	getGlobalSettings()->attemptCap = main_args.attempt_cap;
+	getGlobalSettings()->minProcEfficiency = main_args.minimumEfficiency;
+	getGlobalSettings()->maxProcs = main_args.maxProcessors;
 	
 	std::cout << "Generating permutations...\n";
 	std::vector<igraph_t *> * clusterings;

@@ -194,7 +194,6 @@ void test_with_small_hardcoded_graph() {
 	std::cout << igraph_vcount(import) << "\n";
 	std::cout << igraph_vcount(newGraph) << "\n";
 	
-	
 	/*
 	printEdges(getGlobalSettings()->original_graph);
 	igraph_integer_t head = levelLabel(getGlobalSettings()->original_graph);
