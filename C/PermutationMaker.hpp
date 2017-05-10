@@ -30,6 +30,7 @@ struct taskDistance {
 	igraph_integer_t id = -1;
 };
 
+void reset();
 void split(const std::string &s, char delim, std::vector<std::string>  * elems);
 void combine(igraph_t * , igraph_integer_t, igraph_integer_t);
 void getMultiprocRuntime(std::vector<std::string> * subgraphIDs, int * procresult, double * runtimeResult);

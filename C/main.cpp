@@ -40,6 +40,9 @@ struct MainArguments
 
 };
 
+/**
+Used for command-line flags
+*/
 enum {
 	TEST = 1000,
 	HASH,
@@ -325,6 +328,8 @@ int main (int argc, char* argv[]) {
 	//printEdges(getGlobalSettings()->original_graph);
 	//printNodes(getGlobalSettings()->original_graph);
 	
+	
+	//set everything to the global settings
 	getGlobalSettings()->fileBase = main_args.output_prefix;
 	getGlobalSettings()->maxGraphs = main_args.max_permutations;
 	getGlobalSettings()->timeLimit = main_args.timeout;

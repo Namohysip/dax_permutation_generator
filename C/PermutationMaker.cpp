@@ -24,11 +24,22 @@ struct GlobalSettings config;
 /*Combines the two given nodes, such that node2 is combined into node2.
 Runtimes are added together, and the ID of node1 is kept. */
 void combine(igraph_t * G, igraph_integer_t node1, igraph_integer_t node2){
+	
+	//set up the new combined node's components to be both nodes' components put together
 	std::string oldComponents1 = VAS(G,"components",node1);
 	std::string oldComponents2 = VAS(G,"components",node2);
 	std::string newComponents = oldComponents1 + "," + oldComponents2;
+	
+	//sort components so the resulting DAX file is deterministic (for hashing purposes).
+	//keeps the same graph from being hashed differently because components are in a different order.
 	std::vector<std::string> subgraphComponents;
 	split( newComponents, ',', &subgraphComponents);
+	std::sort(subgraphComponents.begin(), subgraphComponents.end());
+	newComponents = subgraphComponents.at(0);
+	
+	for(int i = 1; i < subgraphComponents.size(); i++){
+		newComponents += "," + subgraphComponents.at(i);
+	}
 	int procResult;
 	double runtimeResult;
 	getMultiprocRuntime(&subgraphComponents, &procResult, &runtimeResult);
@@ -42,6 +53,8 @@ void combine(igraph_t * G, igraph_integer_t node1, igraph_integer_t node2){
 	igraph_vs_adj(&in2, node2, IGRAPH_IN); //get all predecessors of node2
 	igraph_vit_create(G, out2, &outIter2);
 	igraph_vit_create(G, in2, &inIter2);
+	
+	//This loop gets all out-edges of nose2 and brings it to node1
 	while (! IGRAPH_VIT_END(outIter2)){
 		igraph_integer_t child = IGRAPH_VIT_GET(outIter2);
 		/*Delete the edge (node2, child) and then add edge (node1, child) */
@@ -61,6 +74,7 @@ void combine(igraph_t * G, igraph_integer_t node1, igraph_integer_t node2){
 		igraph_es_destroy(&edel);
 	}
 	
+	//this loop gets all in-edges of node2 and routes them to node1 instead
 	while (! IGRAPH_VIT_END(inIter2)){
 		igraph_integer_t parent = IGRAPH_VIT_GET(inIter2);
 		/*Delete the edge (parent, node2) and make it (parent, node1) */
@@ -81,6 +95,7 @@ void combine(igraph_t * G, igraph_integer_t node1, igraph_integer_t node2){
 		igraph_es_destroy(&edel);
 	}
 	
+	//Sets node1 to the new runtime as calculated above 
 	SETVAN(G, "runtime", node1, runtimeResult);
 	SETVAS(G,"components",node1, newComponents.c_str());
 	SETVAN(G,"procs",node1,procResult);
@@ -440,8 +455,8 @@ bool addHashAndOutput(std::vector<std::string> *graphs, igraph_t * newGraph){
 
 /*The hash equivalent of timedExhaustivePerm. */
 bool exhaustivePermHash(std::vector<std::string> * graphs, igraph_t * graph, clock_t start){
-	if(igraph_vcount(graph)< 2){
-		return true; //base case -- only one node left
+	if(igraph_vcount(graph)<= config.minSize){
+		return true; //base case -- smaller than the minimum allowed size
 	}
 	if(config.timeLimit > 0){
 		if (config.timeLimit < double(clock() - start) / CLOCKS_PER_SEC) //time-up case -- return and wrap things up	return false;
@@ -560,12 +575,16 @@ std::vector<igraph_t *> * randomizedPerm(igraph_t * graph){
 	dagToDAX(graph);
 	while((graphs->size() < config.maxGraphs || config.maxGraphs < 1)&& config.timeLimit > double(clock() - start) / CLOCKS_PER_SEC){ 
 	//when time runs out or the goal permutation count is met, whichever comes first.
-		attempts++;
+		
 		igraph_t * sourceGraph = graphs->at(rand() % graphs->size()); //get a random graph already permuted
-		if(makeRandomCombination(graphs, sourceGraph)){
-			if(graphs->size() % 1000 == 0){
-				std::cout << "Made these many permutations: " << graphs->size() << "\n";
+		if(igraph_vcount(sourceGraph) >= config.minSize) {
+			attempts++;
+			if(makeRandomCombination(graphs, sourceGraph)){
+				if(graphs->size() % 1000 == 0){
+					std::cout << "Made these many permutations: " << graphs->size() << "\n";
+				}
 			}
+			failures++;
 		}
 	}
 	std::cout << "Attempted making a graph this many times: " << attempts << "\n";
@@ -573,6 +592,12 @@ std::vector<igraph_t *> * randomizedPerm(igraph_t * graph){
 	return graphs;
 }
 
+/** Alternative version of randomized permutation that, instead of totally random permutations,
+   makes a set number of randomized graphs of each size. In other words, if a graph is of size 10,
+   and you want to make 5 graphs per size, then there will be 5 graphs of size 9, 5 of size 8,
+   5 of size 7, and so on, unless it cannot create enough graphs after the specified number of
+   attempts, configurable through the command prompt
+*/
 int RandomizedPermEvenSpread(igraph_t * graph){
 	srand((double) clock());
 	std::vector<igraph_t *> * open = new std::vector<igraph_t *>;
@@ -614,6 +639,9 @@ int RandomizedPermEvenSpread(igraph_t * graph){
 	return i;
 }
 
+/**
+Gets all nodes that have no parents, and gives them a parent "head" node with no weight.
+*/
 igraph_integer_t makeHead(igraph_t * graph){
 	igraph_integer_t node = 0;
 	igraph_integer_t size = 0;
@@ -636,6 +664,9 @@ igraph_integer_t makeHead(igraph_t * graph){
 	return head;
 }
 
+/**
+Gets all nodes that have no children, and gives them a child "sink" node with no weight.
+*/
 igraph_integer_t makeSink(igraph_t * graph){
 	igraph_integer_t node = 0;
 	igraph_integer_t size = 0;
@@ -696,10 +727,18 @@ igraph_integer_t levelLabel(igraph_t * graph){
 	return head;
 }
 
+/**
+Returns the struct that holds all global configuratio variables
+*/
 struct GlobalSettings * getGlobalSettings(){
 	return &config;
 }
 
+/**
+This method will try to find a node that has only one child, and that child has
+only that node as its parent. If it finds a graph like this, it conbines them and returns true.
+If it cannot find such a pair, it does nothing and returns false.
+*/
 bool mergeAChain(igraph_t * graph){
 	for (int i = 0; i < igraph_vcount(graph); i++) {
 		igraph_integer_t parent = i;
@@ -714,7 +753,7 @@ bool mergeAChain(igraph_t * graph){
 			igraph_vs_t parents;
 			igraph_vs_adj(&parents,onlyChild,IGRAPH_IN);
 			igraph_vs_size(graph,&parents,&size);
-			if((int) size == 1) {
+			if((int) size == 1) { //there is only one parent to this vertex
 				combine(graph,parent,onlyChild);
 				igraph_vs_destroy(&children);
 				igraph_vs_destroy(&parents);
@@ -730,7 +769,9 @@ bool mergeAChain(igraph_t * graph){
 }
 
 
-
+/**
+This method clusters tasks given in tasksAtLEvel by runtime, balancing the workflow at each level by runtime.
+*/
 std::vector<struct taskBin *> * clusterByRuntime(igraph_t * newGraph, std::vector<igraph_integer_t> * tasksAtLevel, int perLevel, bool noBinRestrictions){
 	std::vector<struct taskBin *> * taskBins = new std::vector<struct taskBin *>;
 	
@@ -939,6 +980,13 @@ void calculateImpactFactors(igraph_t * graph, igraph_integer_t sink){
 	}
 }
 
+/**
+This is a lot like the above method of horizontal clustering, but prioritizes similarity in Impact Factor.
+This is a metric that measures how much 'influence' a task has based on its dependencies. For simplicity, 
+if the sink node has an impact factor of 1, then for n parents of the sink, each parent will have an impact
+factor of 1/n. Then, for one of those parents as an example, the m parents of that node will have an impact
+factor of (1/n)/m. And so on and so forth. Nodes with the same impact factor are clustered together first.
+*/
 igraph_t * impactFactorClustering(igraph_t * graph, int perLevel, bool noBinRestrictions){
 	igraph_t * newGraph = new igraph_t;
 	igraph_copy(newGraph, graph);
@@ -1197,7 +1245,12 @@ std::map<igraph_integer_t,std::map<igraph_integer_t,int> * > * calculateDistance
 	
 }
 
-
+/**
+Like Impact Factor above, this is another clustering method that is similar to horizontal clustering,
+but instead of clustering by that metric, they are clustered by distance from one another instead based
+on their combined distance to a common descendant. For example, if nodes A and B share the same child C,
+and node A is 2 edge-hops from C and node B is 3 hops, then their distance is 5.
+Tasks with the lowest distance are clustered first. */
 igraph_t * distanceBalancedClustering(igraph_t * graph, int perLevel, bool noBinRestrictions){
 	igraph_t * newGraph = new igraph_t;
 	igraph_copy(newGraph, graph);
@@ -1313,6 +1366,8 @@ igraph_t * distanceBalancedClustering(igraph_t * graph, int perLevel, bool noBin
 	
 }
 
+/*Converts the string ID into the igraph's internal vertex id.
+Useful for utility. */
 igraph_integer_t findVertexID(igraph_t * graph, std::string id){
 	for(int i = 0; i < igraph_vcount(graph); i++){
 		if( strcmp(VAS(graph, "id", i), id.c_str()) == 0){
@@ -1331,6 +1386,14 @@ void split(const std::string &s, char delim, std::vector<std::string>  * elems) 
     }
 }
 
+/**
+Another type of horizontal clustering that clusters by runtime. However, instead of clustering
+by level, this method clusters specifically through fork-joins. In this context, a fork-join is
+where there is one node with many children, and all of these children all have only that node as 
+a parent, and they also only have the same child node as well.
+Alternatively speaking, it performs a runtime-balanced clustering on all tasks that have exactly one
+in-edge and exactly one out-edge, and they come from and point to the same tasks.
+*/
 igraph_t * forkJoin(igraph_t * graph, int perLevel, bool noBinRestrictions){
 	igraph_t * newGraph = new igraph_t;
 	igraph_copy(newGraph, graph);
@@ -1414,6 +1477,14 @@ igraph_t * forkJoin(igraph_t * graph, int perLevel, bool noBinRestrictions){
 	outputDAXStr(dagToDAXStr(newGraph));
 	return newGraph;
 }
+
+/**
+Method that calculates the makespan of a set of tasks based on their components.
+It then sets the value of how many processors were used to achieve this runtime, 
+and the runtime itself. It also checks to make sure that the efficiency is at or below
+the specified amount in the global settings. If not, it repeats, but with fewer processors
+until the proper efficiency is ahcieved.
+*/
 void getMultiprocRuntime(std::vector<std::string> * subgraphIDs, int * procResult, double * runtimeResult){
 	double efficiency = -1;
 	int maxProcs = config.maxProcs + 1;
@@ -1543,6 +1614,10 @@ void getMultiprocRuntime(std::vector<std::string> * subgraphIDs, int * procResul
 	}
 }
 
+/**Calculates the longest amount of time needed to reach the sink node.
+A lot like a level, but instead of each edge being weighted 1, the node runtime
+is the weight used to calculate a B-level.
+*/
 igraph_integer_t calculateB_levels(igraph_t * graph){
 	igraph_integer_t sink = makeSink(graph);
 	igraph_integer_t head = makeHead(graph);
@@ -1578,6 +1653,9 @@ igraph_integer_t calculateB_levels(igraph_t * graph){
 	return head;
 }
 
+/**
+Does nothing except the optional chainMerge flag, and outputs and returns the result.
+*/
 igraph_t * noOp(igraph_t * graph){
 	igraph_t * newGraph = new igraph_t;
 	igraph_copy(newGraph, graph);
@@ -1589,6 +1667,12 @@ igraph_t * noOp(igraph_t * graph){
 	outputDAXStr(dagToDAXStr(newGraph));
 	return newGraph;
 }
+
+/**
+Customized method of clustering, in the format
+"Cluster1A,cluster1B,cluster1C:cluster2A,cluster2B" and so on. In other words,
+tasks to be clustered together are separated by commas, and cluster groups are 
+separated by colons. */
 igraph_t * customClustering(igraph_t * graph, std::string idList){
 	std::vector<std::string> combinations;
 	split(idList, ':', &combinations);
@@ -1601,4 +1685,10 @@ igraph_t * customClustering(igraph_t * graph, std::string idList){
 	
 	outputDAXStr(dagToDAXStr(newGraph));
 	return newGraph;
+}
+
+/**Used for debug, resets the permCount to 0.
+*/
+void reset(){
+	permCount = 0;
 }

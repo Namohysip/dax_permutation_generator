@@ -4,6 +4,7 @@
 #include <sstream>
 #include "workflow.hpp"
 #include <string>
+#include <fstream>
 #include <string.h>
 #include <unistd.h>
 
@@ -12,9 +13,10 @@
 
 void test_with_small_hardcoded_graph();
 
+double calculateSD(double data[], int size);
 
 void test_with_small_hardcoded_graph() {
-
+/*
 	 igraph_t graph;
 	 igraph_t another;
 	 
@@ -128,7 +130,8 @@ void test_with_small_hardcoded_graph() {
 		 SETVAN(&hash, "runtime", i, 60);
 		 igraph_add_edge(&hash, i-1, i);
 	 }
-	/*
+	 
+	
 	std::vector<std::string> * graphs = exhaustivePermHashStart(&hash, "test", 100, 5000);
 	 std::cout << graphs->size() << "\n";
 	graphs->clear();
@@ -140,59 +143,118 @@ void test_with_small_hardcoded_graph() {
 	}
 	notHashed->clear();
 	delete(notHashed); 
+	 igraph_destroy(&another); ///be sure to clear up memory
+	 igraph_destroy(&graph);
+	 igraph_vs_destroy(&del);
+	 igraph_es_destroy(&edel);
+	 igraph_destroy(&notDuplicate);
+	 igraph_destroy(&hash);
 	*/
-	getGlobalSettings()->maxGraphs = 20000;
-	getGlobalSettings()->timeLimit = 1;
+	getGlobalSettings()->maxGraphs = 2000;
+	getGlobalSettings()->timeLimit = 600;
 	getGlobalSettings()->fileBase = "output/test";
 	
-	/*
-	std::cout << "Testing randomized method\n";
-	
-	std::vector<igraph_t *> * randomized = randomizedPerm(&hash);
-	std::cout << randomized->size() << "\n";
-	
-	std::cout << "Original graph size: " << std::to_string(max) << "\n";
-	std::cout << "Average graph size: ";
-	int total = 0;
-	for(std::vector<igraph_t *>::iterator it = randomized->begin(); it != randomized->end(); ++it){
-		total += igraph_vcount(*it);
-	}
-	std::cout << std::to_string(total / randomized->size()) << "\n"; 
-	*/
-	Workflow * workflow = new Workflow("some_workflow");
-	if (workflow->load_from_xml("workflows/1000genome.xml")) {
-	  exit(1);
-	} 
-	/*
-	std::cout << "Edge count: " << igraph_ecount(getGlobalSettings()->original_graph) << "\n";
-	std::cout << "Testing randomized method on workflow\n";
-	std::vector<igraph_t *> * workflowRand = randomizedPerm(getGlobalSettings()->original_graph, 100, 20000, "test");
-	std::cout << workflowRand->size() << "\n";
-	
-	std::cout << "Original graph size: " << igraph_vcount(getGlobalSettings()->original_graph) << "\n";
-	std::cout << "Average graph size: ";
-	int workTotal = 0;
-	for(std::vector<igraph_t *>::iterator it = workflowRand->begin(); it != workflowRand->end(); ++it){
-		workTotal += igraph_vcount(*it);
-	
-	std::cout << std::to_string(workTotal / workflowRand->size());
-	*/
-	
+	std::string files[] = {"workflows/DAG.xml","workflows/Epigenomics_1.xml","workflows/1000genome.xml"};
+	std::string methods[] = {"Exhaustive","Hashed Exhaustive","Random","Random Even-Spread","HRB","HIFB","HDB","Fork-Join"};
 	igraph_t * import = getGlobalSettings()->original_graph;
-	getGlobalSettings()->mergeChainsBefore = true;
-	igraph_t * newGraph = horizontalClustering(import, 2, false);
-	double total = 0;
-	for(int i = 0; i < igraph_vcount(import); i++){
-		total += VAN(import,"runtime",i);
+	int trials = 10;
+	std::ofstream resultsFile("results.txt");
+	for(int fileName = 0; fileName < 3; fileName++){
+		resultsFile << "~~~~~~~~~~~~~~~~~~~\r\n" << files[fileName] << ":\r\n";
+		Workflow * workflow = new Workflow("some_workflow");
+		if (workflow->load_from_xml(files[fileName])) {
+		  exit(1);
+		} 
+		double times[trials];
+		for(int procs = 1; procs < 5; procs += 3){
+			resultsFile << "\r\n Efficienct: 0.75, processors: " << procs << "\r\n";
+			for(int type = 3; type < 4; type++){
+				double total = 0;
+				resultsFile << "\r\n" << methods[type] << ":\r\n";
+				for(int i = 0; i < trials; i++){
+					clock_t start = clock(); //timer
+					int count = 1;
+					switch(type){
+						case(0): 
+						{
+							std::vector<igraph_t*> * clusterings = exhaustivePermStart(getGlobalSettings()->original_graph);
+							for(int j = 1; j < clusterings->size(); j++){
+								igraph_destroy(clusterings->at(j));
+							}
+							clusterings->clear();
+							delete(clusterings);
+							break;
+						}
+						case(1):
+						{
+							std::vector<std::string> * hashes = exhaustivePermHashStart(getGlobalSettings()->original_graph);
+							hashes->clear();
+							delete(hashes);
+							break;
+						}
+						case(2):
+						{
+							std::vector<igraph_t*> * clusterings = randomizedPerm(getGlobalSettings()->original_graph);
+							for(int j = 1; j < clusterings->size(); j++){
+								igraph_destroy(clusterings->at(j));
+							}
+							clusterings->clear();
+							delete(clusterings);
+							break;
+						}
+						case(3):
+						{
+							getGlobalSettings()->maxGraphs = 5;
+							count = RandomizedPermEvenSpread(getGlobalSettings()->original_graph);
+							resultsFile << "Amount created: " << count << "\r\n";
+							getGlobalSettings()->maxGraphs = 2000;
+							break;
+						}
+						case(4):
+						{
+							horizontalClustering(getGlobalSettings()->original_graph, 2, true);
+							break;
+						}
+						case(5):
+						{
+							impactFactorClustering(getGlobalSettings()->original_graph, 2, true);
+							break;
+						}
+						case(6):
+						{
+							distanceBalancedClustering(getGlobalSettings()->original_graph, 2, true);
+							break;
+						}
+						case(7):
+						{
+							forkJoin(getGlobalSettings()->original_graph, 2,true);
+							break;
+						}
+					default: {break;}
+					}
+					double time = double(clock() - start) / CLOCKS_PER_SEC;
+					if(type != 3){
+						times[i] = time;
+					}
+					else{
+						times[i] = 2000 * (time / (double) count);
+					}
+					std::cout << "Time taken : " << time << "\n";
+					resultsFile << "Time: " << time << "\r\n";
+					total += times[i];
+					reset();
+					
+				}
+				double average = total / (double) trials;
+				std::cout << "Average time: " << average << "\n";
+				double SD = calculateSD(times, trials);
+				std::cout << "Standard Deviation: " << SD << "\n";
+				double percentDiff = 100 * SD / average;
+				std::cout << "% diff of SD and average: " << percentDiff << "%\n";
+				resultsFile << "Average: " << average << "\r\nStandard Deviation: " << SD << "\r\nPercentDiff: " << percentDiff << "\r\n";
+			}
+		}
 	}
-	std::cout << total << "\n";
-	total = 0;
-	for(int i = 0; i < igraph_vcount(newGraph); i++){
-		total += VAN(newGraph,"runtime",i);
-	}
-	std::cout << total << "\n";
-	std::cout << igraph_vcount(import) << "\n";
-	std::cout << igraph_vcount(newGraph) << "\n";
 	
 	/*
 	printEdges(getGlobalSettings()->original_graph);
@@ -207,12 +269,6 @@ void test_with_small_hardcoded_graph() {
 	
 	
 	*/
-	 igraph_vs_destroy(&del);
-	 igraph_es_destroy(&edel);
-	 igraph_destroy(&notDuplicate);
-	 igraph_destroy(&hash);
-	 igraph_destroy(&another); ///be sure to clear up memory
-	 igraph_destroy(&graph);
 
 	 /*
 	 
@@ -299,4 +355,24 @@ void test_with_small_hardcoded_graph() {
 	 
 	 */
 
+	resultsFile.close();
+}
+/*Taken and modified from programiz*/
+double calculateSD(double data[], int size)
+{
+    double sum, mean, standardDeviation = 0.0;
+
+    int i;
+
+    for(i = 0; i < size; ++i)
+    {
+        sum += data[i];
+    }
+
+    mean = sum/size;
+
+    for(i = 0; i < size; ++i)
+        standardDeviation += pow(data[i] - mean, 2);
+
+    return sqrt(standardDeviation / (size - 1));
 }
